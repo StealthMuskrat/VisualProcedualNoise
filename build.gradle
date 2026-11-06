@@ -1,0 +1,30 @@
+plugins {
+    id 'application'
+}
+
+group = 'dev.visualengine'
+version = '0.1.0'
+repositories { mavenCentral() }
+java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
+
+def lwjglVersion = '3.4.3'
+def nativePlatform = providers.gradleProperty('nativePlatform').getOrElse(
+        System.getProperty('os.name').toLowerCase().contains('win') ? 'natives-windows' :
+        System.getProperty('os.name').toLowerCase().contains('mac') ? 'natives-macos' : 'natives-linux')
+dependencies {
+    implementation platform("org.lwjgl:lwjgl-bom:$lwjglVersion")
+    ['lwjgl', 'lwjgl-glfw', 'lwjgl-opengl'].each {
+        implementation "org.lwjgl:$it"
+        runtimeOnly "org.lwjgl:$it::$nativePlatform"
+    }
+}
+application {
+    mainClass = 'dev.visualengine.app.Main'
+    applicationDefaultJvmArgs = ['--enable-native-access=ALL-UNNAMED']
+}
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+tasks.withType(AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}
+tasks.named('wrapper') { gradleVersion = '9.1.0'; distributionType = Wrapper.DistributionType.BIN }
