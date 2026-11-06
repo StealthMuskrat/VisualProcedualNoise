@@ -68,6 +68,7 @@ public final class Engine implements AutoCloseable {
     if (options.effect != null)
       dev.visualengine.authoring.EffectPackage.load(options.effect).apply(settings);
     if (options.recipe != null) dev.visualengine.model.Recipes.apply(settings, options.recipe);
+    if (options.quality != null) settings = options.quality.apply(settings);
     if (options.grid != null) settings.grid = options.grid;
     if (options.seed != null) settings.seed = options.seed;
     if (options.expression != null) settings.expression = options.expression;
@@ -380,6 +381,18 @@ public final class Engine implements AutoCloseable {
         case "grid" -> {
           settings.grid = ((Number) c.value()).intValue();
           reset = true;
+        }
+        case "quality" -> {
+          var profile = (dev.visualengine.model.QualityProfile) c.value();
+          Settings candidate = profile.apply(settings);
+          remember();
+          reset |= profile.resets(settings);
+          settings = candidate;
+          if (controls != null) controls.sync(settings);
+          status(
+              profile
+                  + " quality applied"
+                  + (reset ? "; simulation restarted" : "; state preserved"));
         }
         case "particles" -> {
           settings.particles = ((Number) c.value()).intValue();

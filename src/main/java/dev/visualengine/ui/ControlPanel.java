@@ -1,6 +1,7 @@
 package dev.visualengine.ui;
 
 import dev.visualengine.app.Command;
+import dev.visualengine.model.QualityProfile;
 import dev.visualengine.model.Settings;
 import java.awt.*;
 import java.nio.file.Path;
@@ -20,6 +21,8 @@ public final class ControlPanel implements AutoCloseable {
   private final Map<String, JSpinner> numeric = new HashMap<>();
   private JTextField seedField;
   private final JLabel budget = new JLabel();
+  private final JLabel qualityCurrent = new JLabel();
+  private JComboBox<QualityProfile> qualityProfile;
   private JComboBox<Settings.Recipe> recipes;
   private JComboBox<String> palette, debug;
   private AuthoringPanel authoring;
@@ -126,6 +129,32 @@ public final class ControlPanel implements AutoCloseable {
       params.add(lock);
     }
     JPanel quality = column();
+    quality.add(qualityCurrent);
+    qualityProfile = new JComboBox<>(QualityProfile.values());
+    qualityProfile.setSelectedItem(QualityProfile.matching(s).orElse(QualityProfile.BALANCED));
+    JLabel qualityPreview = new JLabel();
+    JLabel profileBudget = new JLabel();
+    Runnable previewQuality =
+        () -> {
+          var profile = (QualityProfile) qualityProfile.getSelectedItem();
+          qualityPreview.setText(profile.describe());
+          profileBudget.setText(
+              String.format(
+                  Locale.ROOT,
+                  "Preset storage: %.1f MiB plus display buffers",
+                  dev.visualengine.gpu.Budget.persistent(profile.apply(new Settings()))
+                      / 1048576.));
+        };
+    qualityProfile.addActionListener(e -> previewQuality.run());
+    previewQuality.run();
+    quality.add(qualityProfile);
+    quality.add(qualityPreview);
+    quality.add(profileBudget);
+    quality.add(new JLabel("Changing grid, particle count or history restarts state."));
+    JButton applyQuality = new JButton("Apply quality preset");
+    applyQuality.addActionListener(
+        e -> submit.accept(new Command("quality", qualityProfile.getSelectedItem())));
+    quality.add(applyQuality);
     quality.add(budget);
     debug =
         new JComboBox<>(
@@ -226,6 +255,11 @@ public final class ControlPanel implements AutoCloseable {
       estimate.grid = ((Number) numeric.get("grid").getValue()).intValue();
       estimate.particles = ((Number) numeric.get("particles").getValue()).intValue();
       estimate.historyLayers = ((Number) numeric.get("historyLayers").getValue()).intValue();
+      if (numeric.containsKey("displayScale"))
+        estimate.displayScale = ((Number) numeric.get("displayScale").getValue()).doubleValue();
+      qualityCurrent.setText(
+          "Current quality: "
+              + QualityProfile.matching(estimate).map(Object::toString).orElse("Custom"));
       budget.setText(
           String.format(
               Locale.ROOT,
@@ -250,6 +284,8 @@ public final class ControlPanel implements AutoCloseable {
     syncing = true;
     try {
       seedField.setText(Long.toString(s.seed));
+      qualityCurrent.setText(
+          "Current quality: " + QualityProfile.matching(s).map(Object::toString).orElse("Custom"));
       locks.forEach((id, box) -> box.setSelected(s.locks.contains(id)));
       numeric.get("grid").setValue(s.grid);
       numeric.get("particles").setValue(s.particles);

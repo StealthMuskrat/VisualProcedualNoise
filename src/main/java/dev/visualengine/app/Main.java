@@ -30,6 +30,7 @@ public final class Main {
               + "--preset file.json --effect effect.json --recipe NAME --seed INTEGER --grid"
               + " 32..1024\n"
               + "--expression FORMULA --shaders DIRECTORY\n"
+              + "--quality draft|balanced|detailed (applied before --grid override)\n"
               + "--headless --frames N --size WIDTHxHEIGHT --capture artwork.png\n"
               + "--export DIRECTORY --frames N --fps 24|30|60|120 --warmup TICKS\n"
               + "--replay take.replay.json --list-recipes\n"

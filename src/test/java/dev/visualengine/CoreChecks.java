@@ -190,6 +190,7 @@ public final class CoreChecks {
     fixture.save(java.nio.file.Path.of("build/reports/replay-fixture.json"));
     count += AuthoringChecks.run();
     count += CheckpointChecks.run();
+    count += QualityChecks.run();
     System.out.println("Core checks passed: " + count);
   }
 

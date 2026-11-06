@@ -14,6 +14,7 @@ public final class Options {
   public Path benchmark;
   public int fps = 60, warmup;
   public dev.visualengine.model.Settings.Recipe recipe;
+  public dev.visualengine.model.QualityProfile quality;
   public Integer grid;
   public Long seed;
 
@@ -52,6 +53,10 @@ public final class Options {
                 dev.visualengine.model.Settings.Recipe.valueOf(
                     args[++i].toUpperCase(java.util.Locale.ROOT).replace('-', '_'));
         case "--grid" -> o.grid = Integer.parseInt(args[++i]);
+        case "--quality" ->
+            o.quality =
+                dev.visualengine.model.QualityProfile.valueOf(
+                    args[++i].toUpperCase(java.util.Locale.ROOT));
         case "--seed" -> o.seed = Long.parseLong(args[++i]);
         default -> throw new IllegalArgumentException("Unknown option: " + args[i]);
       }
@@ -75,6 +80,7 @@ public final class Options {
             || o.effect != null
             || o.replay != null
             || o.recipe != null
+            || o.quality != null
             || o.grid != null
             || o.seed != null
             || o.expression != null))
