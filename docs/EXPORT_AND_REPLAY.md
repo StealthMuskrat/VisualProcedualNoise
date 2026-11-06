@@ -18,6 +18,8 @@ gradlew.bat run --args="--headless --frames 240 --size 1280x800 --replay take.re
 
 Replay targets the same build, algorithm revision and compatible device. It does not promise bit-identical floating-point state across GPU vendors. Recordings are limited to 200000 events and 64 MiB. [Full GPU checkpoints](CHECKPOINTS.md) can resume developed state and an active replay cursor without rerunning its earlier ticks.
 
+[Compatible preset morphing](MORPHING.md) records applied blends as ordinary control events. Capturing/loading endpoints leaves recording untouched. Applying a blend during playback stops playback after validation and preserves the developed state. Startup `--morph-target` / `--morph-amount` resolves a restarting configuration and cannot override a replay or checkpoint.
+
 ## Image sequences
 
 ```powershell

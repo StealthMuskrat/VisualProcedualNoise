@@ -7,8 +7,8 @@ Recorded November 6 2026. Source implementation includes the renderer, sixteen r
 | Check | Result |
 | --- | --- |
 | Java 25 compilation and distribution assembly | Passed with Temurin 25.0.5+8 |
-| JVM contracts | 187 passed: parsing, types, bounds, graph cycles and pruning, seeds, preset migrations, modulation, clocks, replay, custom controls, hashes, typed groups, checkpoint archives, quality profiles, still metadata, discovery integrity/branching/gallery, 16-bit map encoding/metadata/UI and memory limits |
-| OpenGL contracts | 94 passed on Mesa llvmpipe, OpenGL 4.5 core, Mesa 25.2.8, LLVM 20.1.2 |
+| JVM contracts | 253 passed: parsing, types, bounds, graph cycles and pruning, seeds, preset migrations, modulation, clocks, replay, custom controls, hashes, typed groups, checkpoint archives, quality profiles, still metadata, discovery integrity/branching/gallery, 16-bit map encoding/metadata/UI, morph compatibility/interpolation/phases/command ordering/UI and memory limits |
+| OpenGL contracts | 100 passed on Mesa llvmpipe, OpenGL 4.5 core, Mesa 25.2.8, LLVM 20.1.2 |
 | Authoring behavior | Custom values change the image without relinking; encapsulating seeded graphs preserves their rendered output; typed group expressions link and render |
 | Recipe coverage | All sixteen recipes compiled and rendered; generated gallery includes PNGs and complete sidecars |
 | Reset and pause | Repeated reset at the same seed/tick reproduced the image; repeated rendering without ticks preserved it |
@@ -27,6 +27,8 @@ Recorded November 6 2026. Source implementation includes the renderer, sixteen r
 | Installed discovery workflow | Bookmarking preserved image and state; reopening restarted at tick 0 and reproduced the same reset-to-tick run; child provenance and corrupt-reference rejection passed, including Unicode/spaced paths |
 | Texture maps | 16-bit scalar/RGB samples, embedded JSON, ranges, clipping, top-left orientation and absent display-transfer tags passed; GPU planes, normals, complete-field/steep derivatives, masks, emission threshold, display exclusion, state preservation and budget/interface rejection passed |
 | Installed map workflow | All five map types preserved byte-exact image, GPU state and replay cursor; resolved smoothing/pointer metadata, full resolution, embedded/sidecar agreement and over-budget preservation passed |
+| Compatible morphing | All built-in controls and custom scalar/vector controls follow their linear/logarithmic interpolation contracts; incompatible seeds, palettes, topology, resources, schema, reset values and modulation are rejected. Captures own their settings, stale loads are ignored, command ordering is preserved and phases integrate without restart |
+| Morph state and installed workflow | Applying/returning to endpoints preserved paused images, every GPU state byte and simulation metadata. Installed CLI endpoints/midpoint matched resolved presets exactly; replay with morph control events resumed from tick 16 to 24 with identical image, clocks, replay cursor and GPU state. Incompatible output preserved its existing files |
 | Sequence timing | 24 fps sequence used ticks 0, 5, 10 and 15 for its first four frames |
 | Installation contents | Gradle distribution contains engine resources, pinned natives, notices and licenses |
 
@@ -52,6 +54,8 @@ Before public release, run the specification's matrix on physical Windows machin
 The installed Linux script launcher was exercised with replay exports. A native Linux app image was built, but its launcher could not be validated in this sandbox because the process filesystem is unavailable. Linux app images are outside the Windows distribution target.
 
 ## Scope of this release
+
+Version 0.7 adds [compatible preset morphing](MORPHING.md), with explicit desktop apply, startup CLI resolution, phase/state preservation and ordinary preset/replay/checkpoint persistence. Discrete palette/topology transitions and automatic timed morphing remain later extensions.
 
 Version 0.6 adds [16-bit texture-map exports](TEXTURE_MAPS.md) for height, normal, mask, linear color and emission, including embedded encoding/capture contracts. Version 0.5 introduced [discovery history and branching](DISCOVERIES.md), including a thumbnail gallery, favorites, annotations and saved-image A/B references. Version 0.4 introduced [named quality presets and independent still capture](QUALITY_AND_STILLS.md), including exact capture render-size metadata and state-preserving output. Version 0.3 introduced [full GPU checkpoints](CHECKPOINTS.md), including particle counters, history, time, smoothing, A/B reference and active replay continuation. Version 0.2 introduced Effect API 2: custom scalar/vector descriptors, resolved values, generated controls, definition hashes, embedded revision-pinned groups and typed expression ports. Graphs retain explicit reads of the engine's prior visual color, pigment and local-age resources. API 1 effects and older presets remain readable. Reaction and transport customization use the supported host-owned templates and bounded controls.
 
