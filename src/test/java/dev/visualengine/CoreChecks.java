@@ -202,6 +202,7 @@ public final class CoreChecks {
     count += DirectionalChecks.run();
     count += PeriodicityChecks.run();
     count += InspectionUiChecks.run();
+    count += BenchmarkChecks.run();
     System.out.println("Core checks passed: " + count);
   }
 

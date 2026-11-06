@@ -16,6 +16,23 @@ public final class Renderer implements AutoCloseable {
   private Simulation simulation;
   private final GpuTimer timer = new GpuTimer();
   private final GpuTimer tickTimer = new GpuTimer();
+  private long measurementFrame = -1;
+
+  public record Measurements(GpuTimer.Batch render, GpuTimer.Batch tick) {}
+
+  public void measurementFrame(long frame) {
+    measurementFrame = frame;
+  }
+
+  public Measurements collectMeasurements() {
+    return new Measurements(timer.drain(), tickTimer.drain());
+  }
+
+  /** Explicit synchronization belongs outside the measured frame interval. */
+  public Measurements finishMeasurements() {
+    glFinish();
+    return new Measurements(timer.finish(), tickTimer.finish());
+  }
 
   public Renderer(ShaderSources sources) {
     this.sources = sources;
@@ -150,23 +167,27 @@ public final class Renderer implements AutoCloseable {
 
   public void tick(Settings s, double time, double aspect, double x, double y, boolean brush) {
     configure(s);
-    tickTimer.begin();
-    simulation.update(s, time, aspect, x, y, brush);
-    if (s.feedbackEnabled || needsHistory(s) && Math.round(time / Playback.DT) % 8 == 0) {
-      marks.target();
-      material.use();
-      uniforms(material, s, time, (int) (marks.height * aspect), marks.height, x, y, brush);
-      simulation.materialUniforms(material, s);
-      material.i("feedbackEnabled", 0);
-      material.i("pigmentEnabled", s.pigmentEnabled ? 1 : 0);
-      simulation.bind();
-      triangle();
-      simulation.visual(s, marks, time, aspect);
-      if (needsHistory(s))
-        simulation.history.capture(
-            s.feedbackEnabled ? simulation.feedback.read() : marks, Math.round(time / Playback.DT));
+    tickTimer.begin(measurementFrame);
+    try {
+      simulation.update(s, time, aspect, x, y, brush);
+      if (s.feedbackEnabled || needsHistory(s) && Math.round(time / Playback.DT) % 8 == 0) {
+        marks.target();
+        material.use();
+        uniforms(material, s, time, (int) (marks.height * aspect), marks.height, x, y, brush);
+        simulation.materialUniforms(material, s);
+        material.i("feedbackEnabled", 0);
+        material.i("pigmentEnabled", s.pigmentEnabled ? 1 : 0);
+        simulation.bind();
+        triangle();
+        simulation.visual(s, marks, time, aspect);
+        if (needsHistory(s))
+          simulation.history.capture(
+              s.feedbackEnabled ? simulation.feedback.read() : marks,
+              Math.round(time / Playback.DT));
+      }
+    } finally {
+      tickTimer.end();
     }
-    tickTimer.end();
   }
 
   private static boolean needsHistory(Settings s) {
@@ -207,9 +228,12 @@ public final class Renderer implements AutoCloseable {
   public void render(Settings s, double time, int w, int h, double x, double y, boolean brush) {
     configure(s);
     ensureOutput(Math.max(1, (int) (w * s.displayScale)), Math.max(1, (int) (h * s.displayScale)));
-    timer.begin();
-    renderInto(s, time, w, h, x, y, brush, scene, glow, 0, true);
-    timer.end();
+    timer.begin(measurementFrame);
+    try {
+      renderInto(s, time, w, h, x, y, brush, scene, glow, 0, true);
+    } finally {
+      timer.end();
+    }
   }
 
   private void renderInto(

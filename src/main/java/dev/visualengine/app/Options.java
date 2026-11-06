@@ -124,6 +124,12 @@ public final class Options {
           "Use --discovery without preset, effect, replay or checkpoint sources");
     if (o.bookmark != null && o.frames == 0)
       throw new IllegalArgumentException("--bookmark requires --frames > 0");
+    if (o.benchmark != null && o.frames <= 30)
+      throw new IllegalArgumentException(
+          "--benchmark requires --frames > 30 to leave samples after warmup");
+    if (o.benchmark != null && o.fps < 15)
+      throw new IllegalArgumentException(
+          "--benchmark requires --fps >= 15 to bound queries to eight ticks per frame");
     if (o.captureSize != null && o.capture == null)
       throw new IllegalArgumentException("--capture-size requires --capture");
     if (o.inspection != null || o.inspectionSize != null) {

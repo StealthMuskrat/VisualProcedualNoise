@@ -42,8 +42,7 @@ public final class Engine implements AutoCloseable {
   private Renderer renderer;
   private ControlPanel controls;
   private boolean step, reset, fullscreen, freeze, discardElapsed;
-  private final dev.visualengine.export.Benchmark benchmark =
-      new dev.visualengine.export.Benchmark();
+  private final dev.visualengine.export.Benchmark benchmark;
   private Path capture;
   private Command.Still stillCapture;
   private Command.MapExport mapExport;
@@ -63,6 +62,7 @@ public final class Engine implements AutoCloseable {
 
   public Engine(Options options, Path data) {
     this.options = options;
+    this.benchmark = options.benchmark == null ? null : new dev.visualengine.export.Benchmark();
     this.data = data;
     this.discoveries =
         new DiscoveryStore(
@@ -186,6 +186,7 @@ public final class Engine implements AutoCloseable {
         if (recording) recordingLog = ReplayLog.begin(settings, window.width, window.height);
         reset = false;
       }
+      if (benchmark != null) renderer.measurementFrame(rendered);
       int steps =
           options.headless
               ? (options.export != null && rendered == 0 ? 0 : 120 / options.fps)
@@ -276,11 +277,12 @@ public final class Engine implements AutoCloseable {
       if (options.bookmark != null && rendered + 1 == options.frames)
         saveDiscovery(options.bookmark, options.headless);
       glfwSwapBuffers(window.handle);
+      if (benchmark != null) {
+        var measurements = renderer.collectMeasurements();
+        benchmark.recordFrame(rendered, (System.nanoTime() - frameStart) / 1e6);
+        benchmark.accept(measurements.render(), measurements.tick());
+      }
       rendered++;
-      benchmark.record(
-          (System.nanoTime() - frameStart) / 1e6,
-          renderer.gpuMilliseconds(),
-          renderer.tickMilliseconds());
       if ((settings.paused || settings.speed == 0) && !options.headless) glfwWaitEvents();
     }
     if (options.saveCheckpoint != null) saveCheckpoint(options.saveCheckpoint, options.headless);
@@ -297,9 +299,16 @@ public final class Engine implements AutoCloseable {
               options.export.resolve("sequence.json"), PresetIO.JSON.toJson(manifest));
       });
     }
-    if (options.benchmark != null) {
+    if (benchmark != null) {
+      var tail = renderer.finishMeasurements();
+      benchmark.accept(tail.render(), tail.tick());
+      Settings snapshot = settings.copy();
+      var active = signals.frame(settings);
+      snapshot.motionClock = active.motionClock;
+      snapshot.colorClock = active.colorClock;
       var report =
-          benchmark.report(settings, window.width, window.height, device, renderer.bytes());
+          benchmark.report(
+              snapshot, clock.tick(), window.width, window.height, device, renderer.bytes());
       enqueueIOBlocking(
           () -> PresetIO.atomicWrite(options.benchmark, PresetIO.JSON.toJson(report)));
     }
