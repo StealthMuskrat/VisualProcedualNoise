@@ -97,6 +97,24 @@ public final class GpuChecks {
           original[32 * 96 + 12] == comparison[32 * 96 + 12],
           "A/B frozen left preserves encoded pixel");
       renderer.clearReference();
+      s = settings();
+      s.recipe = Settings.Recipe.CUSTOM;
+      s.graphEnabled = true;
+      s.graph = AuthoringChecks.noiseGraph();
+      renderer.configure(s);
+      renderer.render(s, 0, 96, 64, 0, 0, false);
+      int[] ungrouped = image();
+      s.graph = GraphTemplates.capture(s.graph, "local.noise", "1.0.0", List.of());
+      renderer.configure(s);
+      renderer.render(s, 0, 96, 64, 0, 0, false);
+      check(
+          Arrays.equals(ungrouped, image()),
+          "group encapsulation preserves seeded rendered output");
+      s.installEffectControls(List.of(AuthoringChecks.scalar()), Map.of());
+      s.graph = AuthoringChecks.groupGraph();
+      renderer.configure(s);
+      renderer.render(s, 0, 96, 64, 0, 0, false);
+      check(glGetError() == GL_NO_ERROR, "typed group expression shader links and renders");
       Set<Integer> signatures = new HashSet<>();
       s = settings();
       s.recipe = Settings.Recipe.CUSTOM;

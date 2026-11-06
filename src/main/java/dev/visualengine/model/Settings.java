@@ -141,8 +141,15 @@ public final class Settings {
                     .collect(java.util.stream.Collectors.toSet())))
       throw new IllegalArgumentException("Effect control values do not match the schema");
     effectControls.forEach(c -> c.validateValue(effectValues.get(c.id())));
-    if (graph == null || expression == null || name == null || recipe == null || locks == null)
-      throw new IllegalArgumentException("Incomplete scene configuration");
+    if (graph == null
+        || graph.nodes == null
+        || graph.groups == null
+        || graph.nodes.size() > 64
+        || graph.groups.size() > 16
+        || expression == null
+        || name == null
+        || recipe == null
+        || locks == null) throw new IllegalArgumentException("Incomplete scene configuration");
     PARAMETERS.forEach(p -> p.validate(get(p.id())));
     if (palette < 0
         || palette > 3

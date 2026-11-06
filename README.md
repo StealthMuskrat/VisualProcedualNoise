@@ -28,6 +28,8 @@ Dependencies are pinned to LWJGL 3.4.3 and Gradle 9.1.0. Gradle's [9.1 release n
 
 The recipe menu includes sixteen analytic and stateful compositions. The Authoring tab provides templates, bounded scalar formulas and a typed graph canvas. The Modulation tab provides oscillators, smooth random signals, envelopes, keyframes and inspectable macro mappings. See [authoring](docs/AUTHORING.md) and [export, replay and packaging](docs/EXPORT_AND_REPLAY.md) for contracts and limits.
 
+Version 0.2 adds custom scalar/vector effect controls and embedded reusable groups with typed ports and pinned revisions. Import [the example effect](examples/effects/ported-ripple.json) in the Files tab, or run `./gradlew run --args="--effect examples/effects/ported-ripple.json"`. Ordinary numeric edits update uniforms without recompiling shaders.
+
 Discovery bookmarks save artwork and its complete configuration under the user-data directory. A/B comparison shows a frozen finished frame on the left and the live scene on the right; this does not run two independent simulations. GPU storage is estimated before quality changes and capped at 512 MiB.
 
 ## Verification

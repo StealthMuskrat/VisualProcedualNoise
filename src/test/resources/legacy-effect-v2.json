@@ -1,0 +1,8 @@
+{
+  "effectApiVersion": 2,
+  "id": "local.legacy",
+  "version": "1.0.0",
+  "authoring": "expression",
+  "expression": "sin(p.x)",
+  "definitionHash": "1d52f9008776e49f30d81d777c596357a4e8dc8c0502b6793983fa9b9762f811"
+}

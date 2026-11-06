@@ -34,6 +34,7 @@ public record EffectControl(
     if (id == null
         || !id.matches("[A-Za-z][A-Za-z0-9_]{0,47}")
         || Formula.SYMBOLS.containsKey(id)
+        || id.matches("input[0-3]")
         || Settings.PARAMETERS.stream().anyMatch(p -> p.id().equals(id))
         || label == null
         || label.isBlank()

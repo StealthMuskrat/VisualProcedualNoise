@@ -1,0 +1,224 @@
+package dev.visualengine.authoring;
+
+import java.util.*;
+
+/** Embedded, revision-pinned graph definitions expanded into the existing typed compiler. */
+public final class GraphTemplates {
+  public record Input(String name, GraphCompiler.Port type) {}
+
+  public record Group(
+      String id,
+      String version,
+      List<Input> inputs,
+      List<EffectGraph.Node> nodes,
+      String output,
+      GraphCompiler.Port outputType) {
+    public Group {
+      inputs = inputs == null ? List.of() : List.copyOf(inputs);
+      nodes = nodes == null ? List.of() : List.copyOf(nodes);
+    }
+
+    public String key() {
+      return id + "@" + version;
+    }
+  }
+
+  private final Map<String, Group> definitions = new LinkedHashMap<>();
+  private final List<EffectGraph.Node> expanded = new ArrayList<>();
+
+  private GraphTemplates() {}
+
+  public static EffectGraph expand(EffectGraph graph) {
+    if (graph == null
+        || graph.nodes == null
+        || graph.groups == null
+        || graph.nodes.size() > 64
+        || graph.groups.size() > 16)
+      throw new IllegalArgumentException(
+          "Graph requires at most 64 root nodes and 16 group revisions");
+    GraphTemplates t = new GraphTemplates();
+    for (var group : graph.groups) {
+      if (group == null
+          || group.id() == null
+          || !group.id().matches("[A-Za-z][A-Za-z0-9_.-]{0,95}")
+          || group.version() == null
+          || group.version().length() > 32
+          || !group.version().matches("[0-9]+\\.[0-9]+\\.[0-9]+(?:-[A-Za-z0-9.]+)?")
+          || group.outputType() == null
+          || group.nodes().isEmpty()
+          || group.nodes().size() > 32
+          || group.inputs().size() > 8
+          || t.definitions.putIfAbsent(group.key(), group) != null)
+        throw new IllegalArgumentException("Invalid or duplicate group revision");
+      Set<String> names = new HashSet<>();
+      for (var input : group.inputs())
+        if (input == null
+            || input.type() == null
+            || input.name() == null
+            || !input.name().matches("[A-Za-z][A-Za-z0-9_]{0,47}")
+            || !names.add(input.name())) throw new IllegalArgumentException("Invalid group input");
+      validateNodes(group.nodes(), group.output());
+      for (var node : group.nodes())
+        if (node.kind() == EffectGraph.Kind.INPUT
+            && (!names.contains(node.expression()) || !node.inputs().isEmpty()))
+          throw new IllegalArgumentException("Undeclared group input: " + node.expression());
+    }
+    validateNodes(graph.nodes, graph.output);
+    for (String key : t.definitions.keySet()) t.checkReferences(key, new LinkedHashSet<>(), 0);
+    t.expandNodes(graph.nodes, "", Map.of(), 0);
+    EffectGraph result = graph.copy();
+    result.nodes = new ArrayList<>(t.expanded);
+    result.groups = new ArrayList<>();
+    return result;
+  }
+
+  private static void validateNodes(List<EffectGraph.Node> nodes, String output) {
+    Set<String> ids = new HashSet<>();
+    for (var node : nodes)
+      if (node == null
+          || node.id() == null
+          || !node.id().matches("[A-Za-z][A-Za-z0-9_]{0,47}")
+          || node.kind() == null
+          || !ids.add(node.id()))
+        throw new IllegalArgumentException("Invalid or duplicate graph node ID");
+    if (!ids.contains(output))
+      throw new IllegalArgumentException("Missing graph output: " + output);
+    for (var node : nodes)
+      for (String input : node.inputs())
+        if (!ids.contains(input))
+          throw new IllegalArgumentException("Missing graph input: " + input);
+  }
+
+  private void checkReferences(String key, Set<String> active, int depth) {
+    if (depth > 4 || !active.add(key))
+      throw new IllegalArgumentException(
+          "Recursive group or nesting beyond four revisions: " + key);
+    Group group = definitions.get(key);
+    if (group == null) throw new IllegalArgumentException("Missing group revision: " + key);
+    for (var node : group.nodes())
+      if (node.kind() == EffectGraph.Kind.GROUP)
+        checkReferences(node.template(), active, depth + 1);
+    active.remove(key);
+  }
+
+  private void add(EffectGraph.Node node) {
+    if (expanded.size() >= 256)
+      throw new IllegalArgumentException("Expanded graph exceeds 256 nodes");
+    expanded.add(node);
+  }
+
+  private void expandNodes(
+      List<EffectGraph.Node> nodes, String prefix, Map<String, String> bindings, int depth) {
+    if (depth > 4) throw new IllegalArgumentException("Group nesting exceeds four instances");
+    for (var n : nodes) {
+      String id = prefix + n.id();
+      List<String> inputs = n.inputs().stream().map(x -> prefix + x).toList();
+      if (n.kind() == EffectGraph.Kind.INPUT) {
+        String bound = bindings.get(n.expression());
+        if (bound == null)
+          throw new IllegalArgumentException("INPUT is only valid inside a group definition");
+        add(
+            new EffectGraph.Node(
+                id,
+                EffectGraph.Kind.ALIAS,
+                List.of(bound),
+                "0",
+                n.x(),
+                n.y(),
+                false,
+                n.group(),
+                n.comment(),
+                "",
+                n.seedKey()));
+        continue;
+      }
+      if (n.kind() == EffectGraph.Kind.GROUP && !n.bypass()) {
+        Group group = definitions.get(n.template());
+        if (group == null)
+          throw new IllegalArgumentException("Missing group revision: " + n.template());
+        if (group.inputs().size() != inputs.size())
+          throw new IllegalArgumentException(
+              "Group " + n.template() + " requires " + group.inputs().size() + " inputs");
+        String inner =
+            "g"
+                + Integer.toUnsignedString(id.hashCode(), 16)
+                + "_"
+                + Long.toUnsignedString(dev.visualengine.time.Seeds.derive(0, id, "namespace"), 16)
+                + "_";
+        Map<String, String> args = new LinkedHashMap<>();
+        for (int i = 0; i < inputs.size(); i++) {
+          var input = group.inputs().get(i);
+          String checked = inner + "arg_" + i;
+          add(
+              new EffectGraph.Node(
+                  checked,
+                  EffectGraph.Kind.CHECK_SOURCE,
+                  List.of(inputs.get(i)),
+                  input.type().name(),
+                  0,
+                  0,
+                  false,
+                  "",
+                  ""));
+          args.put(input.name(), checked);
+        }
+        expandNodes(group.nodes(), inner + "node_", args, depth + 1);
+        add(
+            new EffectGraph.Node(
+                id,
+                EffectGraph.Kind.CHECK_SOURCE,
+                List.of(inner + "node_" + group.output()),
+                group.outputType().name(),
+                n.x(),
+                n.y(),
+                false,
+                n.group(),
+                n.comment(),
+                "",
+                n.seedKey()));
+      } else
+        add(
+            new EffectGraph.Node(
+                id,
+                n.kind(),
+                inputs,
+                n.expression(),
+                n.x(),
+                n.y(),
+                n.bypass(),
+                n.group(),
+                n.comment(),
+                n.template(),
+                n.seedKey()));
+    }
+  }
+
+  public static EffectGraph capture(
+      EffectGraph graph, String id, String version, List<EffectControl> controls) {
+    GraphCompiler.compile(graph, controls);
+    EffectGraph next = graph.copy();
+    Group definition =
+        new Group(id, version, List.of(), graph.nodes, graph.output, GraphCompiler.Port.SCALAR);
+    if (next.groups.stream().anyMatch(g -> g.key().equals(definition.key())))
+      throw new IllegalArgumentException(
+          "That group revision already exists; choose a new version");
+    next.groups.add(definition);
+    next.nodes =
+        new ArrayList<>(
+            List.of(
+                new EffectGraph.Node(
+                    "instance",
+                    EffectGraph.Kind.GROUP,
+                    List.of(),
+                    "0",
+                    70,
+                    70,
+                    false,
+                    "",
+                    "",
+                    definition.key())));
+    next.output = "instance";
+    GraphCompiler.compile(next, controls);
+    return next;
+  }
+}

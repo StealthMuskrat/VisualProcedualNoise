@@ -6,6 +6,7 @@ public final class Options {
   public boolean headless;
   public int frames, width = 1280, height = 800;
   public Path shaders, preset, capture;
+  public Path effect;
   public String expression;
   public Path export, replay;
   public Path benchmark;
@@ -27,6 +28,7 @@ public final class Options {
         }
         case "--shaders" -> o.shaders = Path.of(args[++i]);
         case "--preset" -> o.preset = Path.of(args[++i]);
+        case "--effect" -> o.effect = Path.of(args[++i]);
         case "--capture" -> o.capture = Path.of(args[++i]);
         case "--expression" -> {
           o.expression = args[++i];

@@ -7,8 +7,9 @@ Recorded November 6 2026. Source implementation includes the renderer, sixteen r
 | Check | Result |
 | --- | --- |
 | Java 25 compilation and distribution assembly | Passed with Temurin 25.0.5+8 |
-| JVM contracts | 34 passed: parsing, types, bounds, graph cycles and pruning, seeds, preset migrations, modulation, clocks, replay and memory limits |
-| OpenGL contracts | 51 passed on Mesa llvmpipe, OpenGL 4.5 core, Mesa 25.2.8, LLVM 20.1.2 |
+| JVM contracts | 59 passed: parsing, types, bounds, graph cycles and pruning, seeds, preset migrations, modulation, clocks, replay, custom controls, hashes, typed groups and memory limits |
+| OpenGL contracts | 54 passed on Mesa llvmpipe, OpenGL 4.5 core, Mesa 25.2.8, LLVM 20.1.2 |
+| Authoring behavior | Custom values change the image without relinking; encapsulating seeded graphs preserves their rendered output; typed group expressions link and render |
 | Recipe coverage | All sixteen recipes compiled and rendered; generated gallery includes PNGs and complete sidecars |
 | Reset and pause | Repeated reset at the same seed/tick reproduced the image; repeated rendering without ticks preserved it |
 | Pigment transport | Constant-field preservation and positive-flow impulse direction passed on a 65×65 grid |
@@ -24,7 +25,7 @@ The GPU suite intentionally compiles an invalid shader to test fallback. Its com
 
 ## Software baseline
 
-The [raw benchmark](benchmarks/llvmpipe-opal.json) records liquid opal at 320×200, seed 173496285120, a 65×65 state grid, no pointer input, 64 frames and 128 fixed ticks. Thirty frames warm up the driver; 34 frames contribute samples. This was a separate run without concurrent test jobs.
+The [raw version 0.1 baseline](benchmarks/llvmpipe-opal.json) records liquid opal at 320×200, seed 173496285120, a 65×65 state grid, no pointer input, 64 frames and 128 fixed ticks. Thirty frames warm up the driver; 34 frames contribute samples. This was a separate run without concurrent test jobs.
 
 | Measurement | Median | 95th percentile |
 | --- | --- | --- |
@@ -43,6 +44,6 @@ The installed Linux script launcher was exercised with replay exports. A native 
 
 ## Scope of this release
 
-Effect API 1 exposes fixed promoted numeric controls, bounded scalar expressions, typed scalar/vector/distance/ID graphs and explicit reads of the engine's prior visual color, pigment and local-age resources. Groups/comments are embedded in resolved graphs. Reaction and transport customization use the supported host-owned templates and bounded controls.
+Version 0.2 adds Effect API 2: custom scalar/vector descriptors, resolved values, generated controls, definition hashes, embedded revision-pinned groups and typed expression ports. Graphs retain explicit reads of the engine's prior visual color, pigment and local-age resources. API 1 effects and older presets remain readable. Reaction and transport customization use the supported host-owned templates and bounded controls.
 
-Full GPU checkpoints, arbitrary user-defined control schemas or simulation kernels, nested external package dependency resolution, signed installers, bundled video encoding, audio/MIDI/OSC, 3D rendering, wallpaper integration and optional driver-specific optimization experiments remain later extensions. The implementation does not claim those features are present.
+Full GPU checkpoints, arbitrary simulation kernels, external package dependency resolution, signed installers, bundled video encoding, audio/MIDI/OSC, 3D rendering, wallpaper integration and optional driver-specific optimization experiments remain later extensions. The implementation does not claim those features are present.

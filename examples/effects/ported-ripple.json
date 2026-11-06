@@ -1,0 +1,186 @@
+{
+  "effectApiVersion": 2,
+  "id": "local.ported-ripple",
+  "version": "1.0.0",
+  "author": "",
+  "license": "",
+  "authoring": "graph",
+  "controls": [
+    {
+      "id": "amplitude",
+      "label": "Height amplitude",
+      "type": "FLOAT",
+      "units": "",
+      "initial": [
+        0.8
+      ],
+      "minimum": 0.05,
+      "maximum": 1.5,
+      "step": 0.01,
+      "scale": "LINEAR",
+      "update": "SMOOTHED"
+    },
+    {
+      "id": "rings",
+      "label": "Ring frequency",
+      "type": "FLOAT",
+      "units": "",
+      "initial": [
+        5.0
+      ],
+      "minimum": 0.1,
+      "maximum": 20.0,
+      "step": 0.1,
+      "scale": "LOGARITHMIC",
+      "update": "UNIFORM"
+    },
+    {
+      "id": "tint",
+      "label": "Color bias",
+      "type": "VEC3",
+      "units": "",
+      "initial": [
+        0.2,
+        0.5,
+        0.8
+      ],
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "step": 0.01,
+      "scale": "LINEAR",
+      "update": "UNIFORM"
+    }
+  ],
+  "controlValues": {
+    "amplitude": [
+      0.8
+    ],
+    "rings": [
+      5.0
+    ],
+    "tint": [
+      0.2,
+      0.5,
+      0.8
+    ]
+  },
+  "graph": {
+    "id": "local.ripple-composition",
+    "version": "1.0.0",
+    "output": "ripple",
+    "groups": [
+      {
+        "id": "local.ripple",
+        "version": "1.0.0",
+        "inputs": [
+          {
+            "name": "domain",
+            "type": "VECTOR2"
+          },
+          {
+            "name": "bias",
+            "type": "SCALAR"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "domain",
+            "kind": "INPUT",
+            "inputs": [],
+            "expression": "domain",
+            "x": 60,
+            "y": 60,
+            "bypass": false,
+            "group": "",
+            "comment": "",
+            "template": ""
+          },
+          {
+            "id": "bias",
+            "kind": "INPUT",
+            "inputs": [],
+            "expression": "bias",
+            "x": 60,
+            "y": 60,
+            "bypass": false,
+            "group": "",
+            "comment": "",
+            "template": ""
+          },
+          {
+            "id": "field",
+            "kind": "EXPRESSION",
+            "inputs": [
+              "domain",
+              "bias"
+            ],
+            "expression": "sin(length(input0)*rings-phase)*amplitude+dot(tint,vec3(.2,.3,.5))+input1",
+            "x": 60,
+            "y": 60,
+            "bypass": false,
+            "group": "",
+            "comment": "",
+            "template": ""
+          }
+        ],
+        "output": "field",
+        "outputType": "SCALAR"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "coordinates",
+        "kind": "COORDINATES",
+        "inputs": [],
+        "expression": "0",
+        "x": 60,
+        "y": 60,
+        "bypass": false,
+        "group": "",
+        "comment": "",
+        "template": ""
+      },
+      {
+        "id": "warped",
+        "kind": "EXPRESSION",
+        "inputs": [
+          "coordinates"
+        ],
+        "expression": "input0+.15*vec2(sin(input0.y*2.0),cos(input0.x*2.0))",
+        "x": 60,
+        "y": 60,
+        "bypass": false,
+        "group": "",
+        "comment": "",
+        "template": ""
+      },
+      {
+        "id": "offset",
+        "kind": "FORMULA",
+        "inputs": [],
+        "expression": ".1",
+        "x": 60,
+        "y": 60,
+        "bypass": false,
+        "group": "",
+        "comment": "",
+        "template": ""
+      },
+      {
+        "id": "ripple",
+        "kind": "GROUP",
+        "inputs": [
+          "warped",
+          "offset"
+        ],
+        "expression": "0",
+        "x": 60,
+        "y": 60,
+        "bypass": false,
+        "group": "",
+        "comment": "",
+        "template": "local.ripple@1.0.0"
+      }
+    ]
+  }
+}

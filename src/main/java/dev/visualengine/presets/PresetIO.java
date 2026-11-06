@@ -17,7 +17,7 @@ public final class PresetIO {
     settings.validate();
     JsonObject root = new JsonObject();
     root.addProperty("schemaVersion", 4);
-    root.addProperty("engineVersion", "0.1.0");
+    root.addProperty("engineVersion", "0.2.0");
     root.addProperty("algorithmRevision", REVISION);
     root.addProperty("rootSeed", Long.toString(settings.seed));
     root.addProperty("statePolicy", "restart");

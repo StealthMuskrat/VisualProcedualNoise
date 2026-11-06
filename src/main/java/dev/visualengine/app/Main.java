@@ -23,9 +23,10 @@ public final class Main {
     }
     if (java.util.Arrays.asList(args).contains("--help")) {
       System.out.println(
-          "Procedural Visual Engine 0.1.0\n"
+          "Procedural Visual Engine 0.2.0\n"
               + "Java 25 / OpenGL 4.3\n"
-              + "--preset file.json --recipe NAME --seed INTEGER --grid 32..1024\n"
+              + "--preset file.json --effect effect.json --recipe NAME --seed INTEGER --grid"
+              + " 32..1024\n"
               + "--expression FORMULA --shaders DIRECTORY\n"
               + "--headless --frames N --size WIDTHxHEIGHT --capture artwork.png\n"
               + "--export DIRECTORY --frames N --fps 24|30|60|120 --warmup TICKS\n"

@@ -48,6 +48,8 @@ public final class Engine implements AutoCloseable {
 
   public void run() throws Exception {
     if (options.preset != null) settings = PresetIO.load(options.preset);
+    if (options.effect != null)
+      dev.visualengine.authoring.EffectPackage.load(options.effect).apply(settings);
     if (options.recipe != null) dev.visualengine.model.Recipes.apply(settings, options.recipe);
     if (options.grid != null) settings.grid = options.grid;
     if (options.seed != null) settings.seed = options.seed;

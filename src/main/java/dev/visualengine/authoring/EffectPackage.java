@@ -39,6 +39,9 @@ public final class EffectPackage {
         || author.length() > 256
         || license.length() > 1024)
       throw new IllegalArgumentException("Invalid effect manifest identity");
+    if (!"centered aspect-correct domain".equals(coordinates)
+        || !"seconds since reset; phase is bounded radians".equals(time))
+      throw new IllegalArgumentException("Unsupported coordinate or time contract");
     if (!"restart".equals(statePolicy))
       throw new IllegalArgumentException("Effect state policy must be restart");
     if (parameters == null || parameters.size() > Settings.PARAMETERS.size())
@@ -62,8 +65,15 @@ public final class EffectPackage {
 
   public static EffectPackage load(Path path) throws IOException {
     if (Files.size(path) > 1_048_576) throw new IOException("Effect package exceeds 1 MiB");
-    EffectPackage effect = PresetIO.JSON.fromJson(Files.readString(path), EffectPackage.class);
+    var raw = com.google.gson.JsonParser.parseString(Files.readString(path)).getAsJsonObject();
+    String supplied = raw.has("definitionHash") ? raw.get("definitionHash").getAsString() : "";
+    raw.remove("definitionHash");
+    if (!supplied.isEmpty() && !supplied.equals(hash(raw)))
+      throw new IllegalArgumentException("Effect definition hash does not match its content");
+    EffectPackage effect = PresetIO.JSON.fromJson(raw, EffectPackage.class);
+    effect.definitionHash = "";
     effect.validate();
+    if (!supplied.isEmpty()) effect.definitionHash = effect.contentHash();
     return effect;
   }
 
@@ -106,6 +116,10 @@ public final class EffectPackage {
   public String contentHash() {
     var json = PresetIO.JSON.toJsonTree(this).getAsJsonObject();
     json.remove("definitionHash");
+    return hash(json);
+  }
+
+  private static String hash(com.google.gson.JsonElement json) {
     try {
       return java.util.HexFormat.of()
           .formatHex(

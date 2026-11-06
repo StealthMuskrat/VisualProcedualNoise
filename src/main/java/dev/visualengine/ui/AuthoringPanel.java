@@ -26,6 +26,7 @@ public final class AuthoringPanel extends JPanel {
   private final JLabel diagnostic = new JLabel("Ready");
   private final Deque<EffectGraph> undo = new ArrayDeque<>();
   private String selected;
+  private final JTextField template = new JTextField();
   private java.util.List<EffectControl> controls = java.util.List.of();
 
   public AuthoringPanel(Consumer<Command> submit, Settings settings) {
@@ -80,6 +81,8 @@ public final class AuthoringPanel extends JPanel {
     edit.add(group);
     edit.add(new JLabel("Comment"));
     edit.add(comment);
+    edit.add(new JLabel("Group revision ID@version"));
+    edit.add(template);
     edit.add(bypass);
     JButton update = new JButton("Update selected");
     update.addActionListener(e -> updateSelected());
@@ -136,6 +139,28 @@ public final class AuthoringPanel extends JPanel {
     JButton applyGraph = new JButton("Apply graph");
     applyGraph.addActionListener(e -> applyGraph());
     edit.add(applyGraph);
+    JButton captureGroup = new JButton("Save graph as reusable group");
+    captureGroup.addActionListener(e -> {
+      String key =
+          JOptionPane.showInputDialog(
+              this, "Group ID@version", "local.group" + (graph.groups.size() + 1) + "@1.0.0");
+      if (key == null) return;
+      try {
+        int separator = key.lastIndexOf('@');
+        if (separator < 1) throw new IllegalArgumentException("Use group ID@version");
+        var next =
+            GraphTemplates.capture(
+                graph, key.substring(0, separator), key.substring(separator + 1), controls);
+        remember();
+        graph = next;
+        output.setText(graph.output);
+        select(graph.output);
+        refresh();
+      } catch (Exception ex) {
+        diagnostic.setText(ex.getMessage());
+      }
+    });
+    edit.add(captureGroup);
     edit.add(new JLabel("Shift-click a target to connect from selection"));
     nodes.add(edit, BorderLayout.SOUTH);
     tabs.addTab("Node graph", nodes);
@@ -164,6 +189,7 @@ public final class AuthoringPanel extends JPanel {
     formula.setText(n.expression());
     group.setText(n.group());
     comment.setText(n.comment());
+    template.setText(n.template());
     bypass.setSelected(n.bypass());
     canvas.repaint();
   }
@@ -186,7 +212,9 @@ public final class AuthoringPanel extends JPanel {
             old.y(),
             bypass.isSelected(),
             group.getText(),
-            comment.getText());
+            comment.getText(),
+            template.getText().trim(),
+            old.seedKey());
     graph.nodes.set(graph.nodes.indexOf(old), n);
     if (graph.output.equals(selected)) graph.output = n.id();
     selected = n.id();
@@ -255,7 +283,9 @@ public final class AuthoringPanel extends JPanel {
                         hit.y(),
                         hit.bypass(),
                         hit.group(),
-                        hit.comment());
+                        hit.comment(),
+                        hit.template(),
+                        hit.seedKey());
                 graph.nodes.set(graph.nodes.indexOf(hit), next);
                 select(next.id());
                 refresh();

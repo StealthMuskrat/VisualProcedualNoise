@@ -18,7 +18,7 @@ public final class Formula {
     }
   }
 
-  public sealed interface Node permits NumberNode, Symbol, Unary, Binary, Call, Swizzle {
+  public sealed interface Node permits NumberNode, Symbol, Unary, Binary, Call, Swizzle, Reference {
     Type type();
 
     String code();
@@ -26,6 +26,38 @@ public final class Formula {
     int cost();
 
     int depth();
+  }
+
+  public record Reference(String identifier, Type type) implements Node {
+    public Reference {
+      if (identifier == null || !identifier.matches("node_[A-Za-z0-9_]+") || type == null)
+        throw new IllegalArgumentException("Invalid generated graph reference");
+    }
+
+    public String code() {
+      return identifier;
+    }
+
+    public int cost() {
+      return 1;
+    }
+
+    public int depth() {
+      return 1;
+    }
+  }
+
+  public static Node bind(Node n, Map<String, Reference> references) {
+    return switch (n) {
+      case Symbol s -> references.containsKey(s.name()) ? references.get(s.name()) : s;
+      case Unary u -> new Unary(u.op(), bind(u.child(), references));
+      case Binary b ->
+          new Binary(b.op(), bind(b.left(), references), bind(b.right(), references), b.type());
+      case Call c ->
+          new Call(c.name(), c.args().stream().map(a -> bind(a, references)).toList(), c.type());
+      case Swizzle s -> new Swizzle(bind(s.child(), references), s.components(), s.type());
+      default -> n;
+    };
   }
 
   public record NumberNode(double value) implements Node {
@@ -430,6 +462,7 @@ public final class Formula {
     return switch (n) {
       case NumberNode ignored -> "vec2(0.)";
       case Symbol ignored -> "vec2(0.)";
+      case Reference ignored -> null;
       case Swizzle s ->
           s.child() instanceof Symbol v && v.name().equals("p")
               ? (s.components().equals("x") ? "vec2(1.,0.)" : "vec2(0.,1.)")

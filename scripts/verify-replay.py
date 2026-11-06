@@ -8,13 +8,16 @@ import tempfile
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--launcher", type=Path, default=Path("build/install/procedural-visual-engine/bin/procedural-visual-engine"))
+parser.add_argument("--fixture", type=Path, default=Path("build/reports/replay-fixture.json"))
 options = parser.parse_args()
 launcher = options.launcher.resolve()
-fixture = Path("build/reports/replay-fixture.json").resolve()
+fixture = options.fixture.resolve()
 if not launcher.is_file() or not fixture.is_file():
     raise SystemExit("Run coreCheck installDist before verify-replay.py")
 
-with tempfile.TemporaryDirectory(prefix="replay-check-") as temporary:
+temporary_parent = Path("build/reports")
+temporary_parent.mkdir(parents=True, exist_ok=True)
+with tempfile.TemporaryDirectory(prefix="replay-check-", dir=temporary_parent) as temporary:
     root = Path(temporary)
     for name in ("a", "b"):
         subprocess.run([

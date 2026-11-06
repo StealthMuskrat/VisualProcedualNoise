@@ -96,7 +96,8 @@ public final class Renderer implements AutoCloseable {
     return compiledSettings.graphEnabled != s.graphEnabled
         || !java.util.Objects.equals(compiledSettings.expression, s.expression)
         || s.graphEnabled
-            && (!java.util.Objects.equals(compiledSettings.graph.nodes, s.graph.nodes)
+            && (!java.util.Objects.equals(compiledSettings.graph.groups, s.graph.groups)
+                || !java.util.Objects.equals(compiledSettings.graph.nodes, s.graph.nodes)
                 || !java.util.Objects.equals(compiledSettings.graph.output, s.graph.output));
   }
 

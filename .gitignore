@@ -4,3 +4,6 @@ out/
 *.log
 .idea/
 *.iml
+
+replay-check-*/
+__pycache__/

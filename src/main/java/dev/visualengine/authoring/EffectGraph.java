@@ -19,7 +19,12 @@ public final class EffectGraph {
     HASH_ID,
     PREVIOUS_COLOR,
     PIGMENT,
-    AGE
+    AGE,
+    GROUP,
+    INPUT,
+    ALIAS,
+    CHECK_SOURCE,
+    EXPRESSION
   }
 
   public record Node(
@@ -31,20 +36,53 @@ public final class EffectGraph {
       double y,
       boolean bypass,
       String group,
-      String comment) {
+      String comment,
+      String template,
+      String seedKey) {
     public Node {
       inputs = inputs == null ? List.of() : List.copyOf(inputs);
       expression = expression == null ? "0" : expression;
       group = group == null ? "" : group;
       comment = comment == null ? "" : comment;
+      template = template == null ? "" : template;
+      seedKey = seedKey == null ? id : seedKey;
+    }
+
+    public Node(
+        String id,
+        Kind kind,
+        List<String> inputs,
+        String expression,
+        double x,
+        double y,
+        boolean bypass,
+        String group,
+        String comment) {
+      this(id, kind, inputs, expression, x, y, bypass, group, comment, "", id);
+    }
+
+    public Node(
+        String id,
+        Kind kind,
+        List<String> inputs,
+        String expression,
+        double x,
+        double y,
+        boolean bypass,
+        String group,
+        String comment,
+        String template) {
+      this(id, kind, inputs, expression, x, y, bypass, group, comment, template, id);
     }
 
     public Node moved(double x, double y) {
-      return new Node(id, kind, inputs, expression, x, y, bypass, group, comment);
+      return new Node(
+          id, kind, inputs, expression, x, y, bypass, group, comment, template, seedKey);
     }
   }
 
   public String id = "local.graph", version = "1.0.0", output = "field";
+  public List<GraphTemplates.Group> groups = new ArrayList<>();
   public List<Node> nodes =
       new ArrayList<>(
           List.of(
@@ -65,6 +103,7 @@ public final class EffectGraph {
     g.version = version;
     g.output = output;
     g.nodes = new ArrayList<>(nodes);
+    g.groups = new ArrayList<>(groups);
     return g;
   }
 }

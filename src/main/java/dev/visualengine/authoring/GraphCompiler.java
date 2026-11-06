@@ -8,6 +8,7 @@ public final class GraphCompiler {
     SCALAR,
     VECTOR2,
     VECTOR3,
+    VECTOR4,
     DISTANCE,
     REGION_ID
   }
@@ -37,21 +38,24 @@ public final class GraphCompiler {
 
   public static Compiled compile(EffectGraph graph, List<EffectControl> controls) {
     EffectControl.validateSchema(controls);
+    graph = GraphTemplates.expand(graph);
     if (graph == null
         || graph.nodes == null
         || graph.nodes.isEmpty()
-        || graph.nodes.size() > 64
+        || graph.nodes.size() > 256
         || graph.output == null)
-      throw new IllegalArgumentException("Graph requires 1..64 nodes and an output");
+      throw new IllegalArgumentException("Expanded graph requires 1..256 nodes and an output");
     GraphCompiler c = new GraphCompiler();
     c.controls = List.copyOf(controls);
     for (var n : graph.nodes) {
       if (n == null
           || n.kind() == null
           || n.id() == null
-          || !n.id().matches("[A-Za-z][A-Za-z0-9_]{0,47}")
+          || !n.id().matches("[A-Za-z][A-Za-z0-9_]{0,127}")
           || !Double.isFinite(n.x())
           || !Double.isFinite(n.y())
+          || n.seedKey() == null
+          || n.seedKey().length() > 128
           || n.comment().length() > 2048
           || n.group().length() > 128
           || c.nodes.putIfAbsent(n.id(), n) != null)
@@ -118,6 +122,53 @@ public final class GraphCompiler {
     Port port;
     String a = in.isEmpty() ? "" : in.getFirst().code();
     switch (n.kind()) {
+      case ALIAS -> {
+        arity(n, in, 1);
+        return in.getFirst();
+      }
+      case CHECK_SOURCE -> {
+        arity(n, in, 1);
+        Port expected;
+        try {
+          expected = Port.valueOf(n.expression());
+        } catch (Exception e) {
+          throw new IllegalArgumentException("Invalid group port type");
+        }
+        require(in.getFirst(), expected);
+        return in.getFirst();
+      }
+      case EXPRESSION -> {
+        if (in.isEmpty() || in.size() > 4)
+          throw new IllegalArgumentException("Expression nodes require 1..4 named inputs");
+        Map<String, Formula.Type> symbols = new LinkedHashMap<>(EffectControl.symbols(controls));
+        Map<String, Formula.Reference> refs = new LinkedHashMap<>();
+        for (int i = 0; i < in.size(); i++) {
+          var value = in.get(i);
+          Formula.Type type =
+              switch (value.port()) {
+                case SCALAR -> Formula.Type.FLOAT;
+                case VECTOR2 -> Formula.Type.VEC2;
+                case VECTOR3 -> Formula.Type.VEC3;
+                case VECTOR4 -> Formula.Type.VEC4;
+                default ->
+                    throw new IllegalArgumentException(
+                        "Convert semantic IDs/distances before using them in expressions");
+              };
+          String name = "input" + i;
+          symbols.put(name, type);
+          refs.put(name, new Formula.Reference(value.code(), type));
+        }
+        var f = Formula.compile(n.expression(), symbols);
+        expandedCost += f.root().cost();
+        code = Formula.bind(f.root(), refs).code();
+        port =
+            switch (f.root().type()) {
+              case FLOAT -> Port.SCALAR;
+              case VEC2 -> Port.VECTOR2;
+              case VEC3 -> Port.VECTOR3;
+              case VEC4 -> Port.VECTOR4;
+            };
+      }
       case FORMULA -> {
         arity(n, in, 0);
         var f = EffectControl.compile(n.expression(), controls);
@@ -153,7 +204,7 @@ public final class GraphCompiler {
       case NOISE -> {
         arity(n, in, 1);
         require(in.getFirst(), Port.VECTOR3);
-        long offset = Seeds.derive(0, n.id(), "domain") & 65535;
+        long offset = Seeds.derive(0, n.seedKey(), "domain") & 65535;
         code = "noise3d(" + a + "+vec3(" + (offset / 1024.) + "))";
         port = Port.SCALAR;
         expandedCost += 64;
@@ -243,6 +294,7 @@ public final class GraphCompiler {
       case SCALAR, DISTANCE -> "float";
       case VECTOR2 -> "vec2";
       case VECTOR3 -> "vec3";
+      case VECTOR4 -> "vec4";
       case REGION_ID -> "uint";
     };
   }

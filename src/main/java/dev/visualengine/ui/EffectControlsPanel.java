@@ -37,6 +37,9 @@ public final class EffectControlsPanel extends JPanel {
     setLayout(new BorderLayout(4, 4));
     JTable table = new JTable(schema);
     table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+    var plain = new javax.swing.table.DefaultTableCellRenderer();
+    plain.putClientProperty("html.disable", Boolean.TRUE);
+    table.setDefaultRenderer(Object.class, plain);
     JPanel editing = new JPanel(new BorderLayout());
     editing.add(new JScrollPane(table));
     JPanel buttons = new JPanel();
@@ -121,7 +124,10 @@ public final class EffectControlsPanel extends JPanel {
               c.update()
             });
         List<Double> current = new ArrayList<>(settings.effectValues.get(c.id()));
-        values.add(new JLabel(c.label() + (c.units().isEmpty() ? "" : " (" + c.units() + ")")));
+        JLabel caption =
+            new JLabel(c.label() + (c.units().isEmpty() ? "" : " (" + c.units() + ")"));
+        caption.putClientProperty("html.disable", Boolean.TRUE);
+        values.add(caption);
         for (int component = 0; component < c.type().width; component++) {
           final int index = component;
           JPanel row = new JPanel(new BorderLayout());
