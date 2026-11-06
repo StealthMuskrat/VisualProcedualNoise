@@ -2,6 +2,7 @@
 build/
 out/
 *.log
+*.vstate
 .idea/
 *.iml
 

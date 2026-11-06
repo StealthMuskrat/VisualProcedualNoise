@@ -30,6 +30,8 @@ The recipe menu includes sixteen analytic and stateful compositions. The Authori
 
 Version 0.2 adds custom scalar/vector effect controls and embedded reusable groups with typed ports and pinned revisions. Import [the example effect](examples/effects/ported-ripple.json) in the Files tab, or run `./gradlew run --args="--effect examples/effects/ported-ripple.json"`. Ordinary numeric edits update uniforms without recompiling shaders.
 
+Version 0.3 adds full simulation checkpoints in the Files tab. Use `--save-checkpoint study.vstate` to save developed GPU state, clocks, smoothing, history, particle counters and an active replay cursor; use `--checkpoint study.vstate` to resume it. See [checkpoint compatibility, limits and examples](docs/CHECKPOINTS.md).
+
 Discovery bookmarks save artwork and its complete configuration under the user-data directory. A/B comparison shows a frozen finished frame on the left and the live scene on the right; this does not run two independent simulations. GPU storage is estimated before quality changes and capped at 512 MiB.
 
 ## Verification

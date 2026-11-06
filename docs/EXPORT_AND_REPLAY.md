@@ -10,7 +10,7 @@ Start replay recording resets the scene and begins a take. Pointer strokes and r
 gradlew.bat run --args="--headless --frames 240 --size 1280x800 --replay take.replay.json --capture replay.png"
 ```
 
-Replay targets the same build, algorithm revision and compatible device. It does not promise bit-identical floating-point state across GPU vendors. Recordings are limited to 200000 events and 64 MiB. A full GPU checkpoint is outside this initial release.
+Replay targets the same build, algorithm revision and compatible device. It does not promise bit-identical floating-point state across GPU vendors. Recordings are limited to 200000 events and 64 MiB. [Full GPU checkpoints](CHECKPOINTS.md) can resume developed state and an active replay cursor without rerunning its earlier ticks.
 
 ## Image sequences
 
