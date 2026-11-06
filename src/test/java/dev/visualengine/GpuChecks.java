@@ -266,6 +266,7 @@ public final class GpuChecks {
       textureMaps();
       morphs();
       count += GaborGpuChecks.run();
+      count += PeriodicityGpuChecks.run();
       reloadFailure(window);
       check(glGetError() == GL_NO_ERROR, "no final GL error");
       System.out.println("GPU checks passed: " + count + " | " + glGetString(GL_RENDERER));

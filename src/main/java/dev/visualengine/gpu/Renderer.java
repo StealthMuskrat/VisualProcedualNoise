@@ -208,7 +208,7 @@ public final class Renderer implements AutoCloseable {
     configure(s);
     ensureOutput(Math.max(1, (int) (w * s.displayScale)), Math.max(1, (int) (h * s.displayScale)));
     timer.begin();
-    renderInto(s, time, w, h, x, y, brush, scene, glow, 0);
+    renderInto(s, time, w, h, x, y, brush, scene, glow, 0, true);
     timer.end();
   }
 
@@ -222,7 +222,8 @@ public final class Renderer implements AutoCloseable {
       boolean brush,
       Texture scene,
       Texture glow,
-      int framebuffer) {
+      int framebuffer,
+      boolean includeReference) {
     scene.target();
     glDisable(GL_FRAMEBUFFER_SRGB);
     glDisable(GL_BLEND);
@@ -245,7 +246,7 @@ public final class Renderer implements AutoCloseable {
     finish.f("exposure", s.get("exposure"));
     finish.f("bloom", s.get("bloom"));
     finish.i("debugView", s.debug);
-    finish.i("compareReference", reference == null ? 0 : 1);
+    finish.i("compareReference", includeReference && reference != null ? 1 : 0);
     if (reference != null) reference.bind(2);
     else scene.bind(2);
     triangle();
@@ -261,6 +262,32 @@ public final class Renderer implements AutoCloseable {
       double x,
       double y,
       boolean brush) {
+    return captureStill(s, time, size, x, y, brush, true);
+  }
+
+  /** Creative output only, without live diagnostic, wrap-preview or A/B overlays. */
+  public java.awt.image.BufferedImage captureInspection(
+      Settings s,
+      double time,
+      dev.visualengine.export.CaptureSize size,
+      double x,
+      double y,
+      boolean brush) {
+    dev.visualengine.export.Periodicity.requireSize(size);
+    Settings render = s.copy();
+    render.debug = 0;
+    render.tilePreview = false;
+    return captureStill(render, time, size, x, y, brush, false);
+  }
+
+  private java.awt.image.BufferedImage captureStill(
+      Settings s,
+      double time,
+      dev.visualengine.export.CaptureSize size,
+      double x,
+      double y,
+      boolean brush,
+      boolean includeReference) {
     s.validate();
     if (simulation == null
         || simulation.grid != s.grid
@@ -281,7 +308,7 @@ public final class Renderer implements AutoCloseable {
       a.clamp();
       b.clamp();
       output = new Texture(w, h, GL_RGBA8);
-      renderInto(s, time, w, h, x, y, brush, a, b, output.framebuffer);
+      renderInto(s, time, w, h, x, y, brush, a, b, output.framebuffer, includeReference);
       return dev.visualengine.export.Capture.read(w, h);
     } finally {
       if (output != null) output.close();

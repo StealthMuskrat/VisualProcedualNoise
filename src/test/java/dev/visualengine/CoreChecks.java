@@ -200,6 +200,7 @@ public final class CoreChecks {
     count += MorphUiChecks.run();
     count += GaborChecks.run();
     count += DirectionalChecks.run();
+    count += PeriodicityChecks.run();
     System.out.println("Core checks passed: " + count);
   }
 
