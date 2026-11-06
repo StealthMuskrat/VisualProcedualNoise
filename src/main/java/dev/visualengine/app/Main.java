@@ -30,6 +30,7 @@ public final class Main {
               + "--preset file.json --effect effect.json --recipe NAME --seed INTEGER --grid"
               + " 32..1024\n"
               + "--expression FORMULA --shaders DIRECTORY\n"
+              + "--vsync on|off --frame-limit 0..240 (desktop session overrides; 0 = uncapped)\n"
               + "--quality draft|balanced|detailed (applied before --grid override)\n"
               + "--morph-target preset.json --morph-amount 0..1 (compatible numeric controls)\n"
               + "--headless --frames N --size WIDTHxHEIGHT --capture artwork.png\n"
@@ -86,7 +87,8 @@ public final class Main {
     } catch (Exception e) {
       e.printStackTrace();
       if (!java.awt.GraphicsEnvironment.isHeadless()
-          && !java.util.Arrays.asList(args).contains("--benchmark-suite"))
+          && java.util.Arrays.stream(args)
+              .noneMatch(java.util.Set.of("--headless", "--export", "--benchmark-suite")::contains))
         javax.swing.JOptionPane.showMessageDialog(
             null,
             e.getMessage() + "\nLog: " + data,

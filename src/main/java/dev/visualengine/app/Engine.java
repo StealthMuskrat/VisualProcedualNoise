@@ -9,6 +9,8 @@ import dev.visualengine.export.TextureMap;
 import dev.visualengine.gpu.*;
 import dev.visualengine.model.PresetMorph;
 import dev.visualengine.model.Settings;
+import dev.visualengine.platform.Presentation;
+import dev.visualengine.platform.PresentationIO;
 import dev.visualengine.platform.Window;
 import dev.visualengine.presets.CheckpointIO;
 import dev.visualengine.presets.DiscoveryStore;
@@ -30,6 +32,9 @@ public final class Engine implements AutoCloseable {
   private final ScheduledExecutorService watcher = Executors.newSingleThreadScheduledExecutor();
   private final Playback clock = new Playback();
   private final ControlSignals signals = new ControlSignals();
+  private final FramePacer pacer = new FramePacer();
+  private Presentation presentation = Presentation.DEFAULT;
+  private boolean presentationBusy;
   private ReplayLog playbackLog, recordingLog;
   private boolean recording, lastBrush, replayBrush;
   private double replayX, replayY;
@@ -112,7 +117,22 @@ public final class Engine implements AutoCloseable {
       settings =
           PresetMorph.blend(
               settings, PresetIO.load(options.morphTarget), settings, options.morphAmount);
-    window = new Window(options.width, options.height, options.headless);
+    String presentationNotice = null;
+    if (!options.headless) {
+      try {
+        presentation = PresentationIO.load(data.resolve("presentation.json"));
+      } catch (Exception e) {
+        presentation = Presentation.DEFAULT;
+        presentationNotice = "Using default presentation settings: " + e.getMessage();
+      }
+      presentation =
+          new Presentation(
+              options.vsync == null ? presentation.vsync() : options.vsync,
+              options.frameLimit == null ? presentation.frameLimit() : options.frameLimit);
+    }
+    window = new Window(options.width, options.height, options.headless, presentation);
+    presentation = window.presentation();
+    pacer.configure(presentation.frameLimit());
     renderer = new Renderer(new ShaderSources(options.shaders));
     if (initialCheckpoint != null) restoreCheckpoint(initialCheckpoint);
     else renderer.configure(settings);
@@ -120,7 +140,8 @@ public final class Engine implements AutoCloseable {
       renderer.setReference(Capture.pixels(discoveries.artwork(options.referenceDiscovery)));
     device =
         glGetString(GL_VENDOR) + " / " + glGetString(GL_RENDERER) + " / " + glGetString(GL_VERSION);
-    if (!options.headless) controls = new ControlPanel(this::submit, settings, data);
+    if (!options.headless) controls = new ControlPanel(this::submit, settings, data, presentation);
+    if (presentationNotice != null) status(presentationNotice);
     glfwSetKeyCallback(
         window.handle,
         (win, key, scan, action, mods) -> {
@@ -170,13 +191,24 @@ public final class Engine implements AutoCloseable {
       glfwPollEvents();
       window.resize();
       drain();
-      double now = glfwGetTime(), elapsed = discardElapsed ? 0 : now - last;
-      discardElapsed = false;
-      last = now;
+      if (window.closing()) break;
       if (window.width == 0 || window.height == 0) {
+        last = glfwGetTime();
+        discardElapsed = true;
+        pacer.reset();
         glfwWaitEventsTimeout(.1);
         continue;
       }
+      if (!options.headless) {
+        long wait = pacer.waitNanos(System.nanoTime());
+        if (wait > 0) {
+          glfwWaitEventsTimeout(wait / 1e9);
+          continue;
+        }
+      }
+      double now = glfwGetTime(), elapsed = discardElapsed ? 0 : now - last;
+      discardElapsed = false;
+      last = now;
       if (reset) {
         elapsed = 0;
         clock.reset();
@@ -187,6 +219,7 @@ public final class Engine implements AutoCloseable {
         reset = false;
       }
       if (benchmark != null) renderer.measurementFrame(rendered);
+      if (!options.headless) pacer.frameStarted(System.nanoTime());
       int steps =
           options.headless
               ? (options.export != null && rendered == 0 ? 0 : 120 / options.fps)
@@ -309,6 +342,7 @@ public final class Engine implements AutoCloseable {
       var report =
           benchmark.report(
               snapshot, clock.tick(), window.width, window.height, device, renderer.bytes());
+      report.add("presentationRequest", PresetIO.JSON.toJsonTree(presentation));
       enqueueIOBlocking(
           () -> PresetIO.atomicWrite(options.benchmark, PresetIO.JSON.toJson(report)));
     }
@@ -397,6 +431,23 @@ public final class Engine implements AutoCloseable {
     boolean resetBefore = reset;
     try {
       switch (c.type()) {
+        case "presentation" -> {
+          if (options.headless)
+            throw new IllegalArgumentException("Presentation controls are desktop-only");
+          changePresentation((Presentation) c.value());
+          return;
+        }
+        case "presentationSaved" -> {
+          var result = (Command.PresentationSaved) c.value();
+          presentationBusy = false;
+          String message =
+              result.failure() == null
+                  ? "Presentation settings saved"
+                  : "Presentation applied for this session; save failed: " + result.failure();
+          if (controls != null) controls.showPresentation(presentation, message, false);
+          status(message);
+          return;
+        }
         case "inspect" -> {
           var request = (Command.Inspection) c.value();
           Periodicity.requireSize(request.size());
@@ -842,6 +893,40 @@ public final class Engine implements AutoCloseable {
     if (controls != null) {
       controls.showMorph(morph.view(settings));
       controls.showInspectionSettings(settings);
+    }
+  }
+
+  private void changePresentation(Presentation requested) {
+    if (presentationBusy) {
+      status("Wait for the current presentation save");
+      return;
+    }
+    if (io.getQueue().remainingCapacity() == 0) {
+      status("File queue full; wait before applying presentation settings");
+      return;
+    }
+    window.applyPresentation(requested);
+    presentation = window.presentation();
+    pacer.configure(presentation.frameLimit());
+    presentationBusy = true;
+    if (controls != null)
+      controls.showPresentation(presentation, "Applied; saving preferences…", true);
+    boolean queued =
+        enqueueIO(() -> {
+          String failure = null;
+          try {
+            PresentationIO.save(data.resolve("presentation.json"), requested);
+          } catch (Exception e) {
+            failure = e.toString();
+          }
+          submit(
+              new Command("presentationSaved", new Command.PresentationSaved(requested, failure)));
+        });
+    if (!queued) {
+      presentationBusy = false;
+      if (controls != null)
+        controls.showPresentation(
+            presentation, "Applied for this session; preferences were not saved", false);
     }
   }
 

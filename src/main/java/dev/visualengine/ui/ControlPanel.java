@@ -31,11 +31,18 @@ public final class ControlPanel implements AutoCloseable {
   private DiscoveryPanel discoveries;
   private MorphPanel morph;
   private InspectionPanel inspection;
+  private PresentationPanel presentation;
+  private final dev.visualengine.platform.Presentation initialPresentation;
   private boolean syncing;
 
-  public ControlPanel(Consumer<Command> submit, Settings initial, Path data) {
+  public ControlPanel(
+      Consumer<Command> submit,
+      Settings initial,
+      Path data,
+      dev.visualengine.platform.Presentation presentation) {
     this.submit = submit;
     this.data = data;
+    this.initialPresentation = presentation;
     try {
       SwingUtilities.invokeAndWait(() -> build(initial));
     } catch (Exception e) {
@@ -262,6 +269,8 @@ public final class ControlPanel implements AutoCloseable {
     tabs.addTab("Scene", new JScrollPane(scene));
     tabs.addTab("Controls", new JScrollPane(params));
     tabs.addTab("Quality", new JScrollPane(quality));
+    presentation = new PresentationPanel(submit, this::showStatus, initialPresentation);
+    tabs.addTab("Presentation", new JScrollPane(presentation));
     tabs.addTab("Files", new JScrollPane(files));
     discoveries = new DiscoveryPanel(submit);
     tabs.addTab("Discoveries", discoveries);
@@ -405,6 +414,11 @@ public final class ControlPanel implements AutoCloseable {
 
   public void showStatus(String text) {
     SwingUtilities.invokeLater(() -> status.setText(text.replace('\n', ' ')));
+  }
+
+  public void showPresentation(
+      dev.visualengine.platform.Presentation value, String message, boolean busy) {
+    SwingUtilities.invokeLater(() -> presentation.showApplied(value, message, busy));
   }
 
   public void showInspection(

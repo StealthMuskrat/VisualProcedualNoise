@@ -4,6 +4,8 @@ import java.util.*;
 import java.util.function.Consumer;
 
 public record Command(String type, Object value) {
+  public record PresentationSaved(dev.visualengine.platform.Presentation value, String failure) {}
+
   /** Coalesce adjacent edits, preserving action boundaries such as endpoint captures and undo. */
   public static void drain(Queue<Command> pending, Consumer<Command> apply) {
     Map<String, Command> edits = new LinkedHashMap<>();

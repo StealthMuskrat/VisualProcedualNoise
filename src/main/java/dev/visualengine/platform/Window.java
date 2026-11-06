@@ -16,6 +16,10 @@ public final class Window implements AutoCloseable {
   public int width, height;
 
   public Window(int w, int h, boolean headless) {
+    this(w, h, headless, Presentation.DEFAULT);
+  }
+
+  public Window(int w, int h, boolean headless, Presentation requested) {
     this.headless = headless;
     error = GLFWErrorCallback.createPrint(System.err);
     error.set();
@@ -51,7 +55,7 @@ public final class Window implements AutoCloseable {
         throw new IllegalStateException("The active graphics driver does not provide OpenGL 4.3.");
       }
       debug = GLUtil.setupDebugMessageCallback(System.err);
-      applyPresentation(Presentation.DEFAULT);
+      applyPresentation(requested);
       resize();
       System.out.println(
           "GPU: "

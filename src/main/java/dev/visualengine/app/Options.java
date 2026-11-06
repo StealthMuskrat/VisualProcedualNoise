@@ -4,6 +4,8 @@ import java.nio.file.Path;
 
 public final class Options {
   public boolean headless;
+  public Boolean vsync;
+  public Integer frameLimit;
   public int frames, width = 1280, height = 800;
   public Path shaders, preset, capture;
   public Path effect;
@@ -38,6 +40,14 @@ public final class Options {
     for (int i = 0; i < args.length; i++)
       switch (args[i]) {
         case "--headless" -> o.headless = true;
+        case "--vsync" ->
+            o.vsync =
+                switch (args[++i]) {
+                  case "on" -> true;
+                  case "off" -> false;
+                  default -> throw new IllegalArgumentException("Use --vsync on|off");
+                };
+        case "--frame-limit" -> o.frameLimit = Integer.valueOf(args[++i]);
         case "--frames" -> o.frames = Integer.parseInt(args[++i]);
         case "--size" -> {
           o.explicitSize = true;
@@ -115,6 +125,10 @@ public final class Options {
     }
     if (o.explicitBenchmarkProfile)
       throw new IllegalArgumentException("--benchmark-profile requires --benchmark-suite");
+    if (o.frameLimit != null) new dev.visualengine.platform.Presentation(true, o.frameLimit);
+    if (o.headless && (o.vsync != null || o.frameLimit != null))
+      throw new IllegalArgumentException(
+          "--vsync and --frame-limit are desktop-only; offline timing is uncapped");
     if (o.width < 32
         || o.height < 32
         || o.width > 8192

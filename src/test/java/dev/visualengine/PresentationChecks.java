@@ -65,6 +65,19 @@ public final class PresentationChecks {
       check(
           PresentationIO.load(file).equals(desired),
           "presentation preferences roundtrip independently of presets");
+      Path blocked = Files.createDirectory(root.resolve("blocked.json"));
+      Files.writeString(blocked.resolve("marker"), "keep");
+      boolean failed = false;
+      try {
+        PresentationIO.save(blocked, desired);
+      } catch (java.io.IOException expected) {
+        failed = true;
+      }
+      check(
+          failed && Files.readString(blocked.resolve("marker")).equals("keep"),
+          "failed presentation save preserves existing destination");
+      Files.delete(blocked.resolve("marker"));
+      Files.delete(blocked);
       for (String invalid :
           new String[] {
             "{}",
