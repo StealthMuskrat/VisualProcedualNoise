@@ -211,6 +211,22 @@ public final class MorphChecks {
     PresetIO.save(reports.resolve("morph-b.json"), target, 0);
     PresetIO.save(
         reports.resolve("morph-half.json"), PresetMorph.blend(source, target, source, .5), 0);
+    Settings stateful = source.copy();
+    Recipes.apply(stateful, Settings.Recipe.TIME_EXCAVATION);
+    stateful.pigmentEnabled =
+        stateful.reactionEnabled = stateful.feedbackEnabled = stateful.particlesEnabled = true;
+    Settings destination = stateful.copy();
+    destination.set("warp", 1.8);
+    destination.set("motion", 1.1);
+    destination.set("feed", .05);
+    destination.set("colorRate", .4);
+    ReplayLog replay = ReplayLog.begin(stateful, 96, 64);
+    replay.recordPointer(1, .2, -.1, .12, true);
+    replay.recordControl(9, PresetMorph.blend(stateful, destination, stateful, .25));
+    replay.recordControl(17, PresetMorph.blend(stateful, destination, stateful, .75));
+    replay.recordPointer(21, .1, .3, .12, false);
+    replay.endTick = 32;
+    replay.save(reports.resolve("morph-replay-fixture.json"));
     return count;
   }
 }

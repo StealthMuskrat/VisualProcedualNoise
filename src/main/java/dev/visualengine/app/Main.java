@@ -31,6 +31,7 @@ public final class Main {
               + " 32..1024\n"
               + "--expression FORMULA --shaders DIRECTORY\n"
               + "--quality draft|balanced|detailed (applied before --grid override)\n"
+              + "--morph-target preset.json --morph-amount 0..1 (compatible numeric controls)\n"
               + "--headless --frames N --size WIDTHxHEIGHT --capture artwork.png\n"
               + "--capture-size WIDTHxHEIGHT (full-resolution still; window stays unchanged)\n"
               + "--map height|normal|mask|linear-color|emission --map-output FILE.png\n"

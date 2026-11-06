@@ -7,6 +7,8 @@ public final class Options {
   public int frames, width = 1280, height = 800;
   public Path shaders, preset, capture;
   public Path effect;
+  public Path morphTarget;
+  public Double morphAmount;
   public Path discoveries;
   public String bookmark, discovery, referenceDiscovery;
   public dev.visualengine.export.CaptureSize captureSize;
@@ -40,6 +42,8 @@ public final class Options {
         case "--shaders" -> o.shaders = Path.of(args[++i]);
         case "--preset" -> o.preset = Path.of(args[++i]);
         case "--effect" -> o.effect = Path.of(args[++i]);
+        case "--morph-target" -> o.morphTarget = Path.of(args[++i]);
+        case "--morph-amount" -> o.morphAmount = Double.valueOf(args[++i]);
         case "--discoveries" -> o.discoveries = Path.of(args[++i]);
         case "--bookmark" -> {
           o.bookmark = args[++i];
@@ -117,6 +121,17 @@ public final class Options {
       throw new IllegalArgumentException("--capture-size requires --capture");
     if (o.replay != null && o.quality != null)
       throw new IllegalArgumentException("Replay uses its recorded quality; omit --quality");
+    if (o.morphTarget != null || o.morphAmount != null) {
+      if (o.morphTarget == null
+          || o.morphAmount == null
+          || !Double.isFinite(o.morphAmount)
+          || o.morphAmount < 0
+          || o.morphAmount > 1)
+        throw new IllegalArgumentException("Use --morph-target FILE with --morph-amount 0..1");
+      if (o.checkpoint != null || o.replay != null)
+        throw new IllegalArgumentException(
+            "Startup morphing requires a restarting configuration; omit --checkpoint and --replay");
+    }
     if (o.mapKind != null || o.mapOutput != null || o.mapSize != null || o.mapRange != null) {
       if (o.mapKind == null || o.mapOutput == null || o.frames == 0)
         throw new IllegalArgumentException(

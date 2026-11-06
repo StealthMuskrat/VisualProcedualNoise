@@ -29,6 +29,7 @@ public final class ControlPanel implements AutoCloseable {
   private EffectControlsPanel effectControls;
   private ModulationPanel modulation;
   private DiscoveryPanel discoveries;
+  private MorphPanel morph;
   private boolean syncing;
 
   public ControlPanel(Consumer<Command> submit, Settings initial, Path data) {
@@ -263,6 +264,18 @@ public final class ControlPanel implements AutoCloseable {
     tabs.addTab("Files", new JScrollPane(files));
     discoveries = new DiscoveryPanel(submit);
     tabs.addTab("Discoveries", discoveries);
+    morph =
+        new MorphPanel(
+            submit,
+            slot -> {
+              JFileChooser chooser = new JFileChooser(data.toFile());
+              if (chooser.showOpenDialog(frame) == JFileChooser.APPROVE_OPTION)
+                submit.accept(
+                    new Command(
+                        "morphLoad",
+                        new Command.MorphLoad(slot, chooser.getSelectedFile().toPath())));
+            });
+    tabs.addTab("Morph", new JScrollPane(morph));
     tabs.addChangeListener(e -> {
       if (tabs.getSelectedComponent() == discoveries) discoveries.open();
     });
@@ -376,6 +389,10 @@ public final class ControlPanel implements AutoCloseable {
 
   public void showStatus(String text) {
     SwingUtilities.invokeLater(() -> status.setText(text.replace('\n', ' ')));
+  }
+
+  public void showMorph(dev.visualengine.model.PresetMorph.View view) {
+    SwingUtilities.invokeLater(() -> morph.showView(view));
   }
 
   public void showDiscoveries(long generation, dev.visualengine.presets.DiscoveryStore.Scan scan) {

@@ -6,6 +6,7 @@ import static org.lwjgl.opengl.GL43C.*;
 import dev.visualengine.export.Capture;
 import dev.visualengine.export.TextureMap;
 import dev.visualengine.gpu.*;
+import dev.visualengine.model.PresetMorph;
 import dev.visualengine.model.Settings;
 import dev.visualengine.platform.Window;
 import dev.visualengine.presets.CheckpointIO;
@@ -35,6 +36,7 @@ public final class Engine implements AutoCloseable {
       new java.util.concurrent.atomic.AtomicReference<>();
   private final Deque<Settings> undo = new ArrayDeque<>();
   private Settings settings = new Settings();
+  private final PresetMorph.Session morph = new PresetMorph.Session();
   private Window window;
   private Renderer renderer;
   private ControlPanel controls;
@@ -102,6 +104,10 @@ public final class Engine implements AutoCloseable {
     }
     settings.validate();
     dev.visualengine.authoring.EffectPackage.resolveResources(settings);
+    if (options.morphTarget != null)
+      settings =
+          PresetMorph.blend(
+              settings, PresetIO.load(options.morphTarget), settings, options.morphAmount);
     window = new Window(options.width, options.height, options.headless);
     renderer = new Renderer(new ShaderSources(options.shaders));
     if (initialCheckpoint != null) restoreCheckpoint(initialCheckpoint);
@@ -296,6 +302,7 @@ public final class Engine implements AutoCloseable {
         if (event.kind().equals("controls")) {
           settings = PresetIO.parse(event.preset().toString());
           renderer.configure(settings);
+          refreshMorph();
         } else {
           replayX = event.x();
           replayY = event.y();
@@ -361,22 +368,7 @@ public final class Engine implements AutoCloseable {
   }
 
   private void drain() {
-    // Coalesce slider drags and reload notifications before touching GPU resources.
-    Map<String, Command> edits = new LinkedHashMap<>();
-    Command c;
-    while ((c = commands.poll()) != null) {
-      String key =
-          c.type().equals("parameter") ? "parameter:" + ((Command.Edit) c.value()).id() : c.type();
-      if (c.type().equals("effectValue"))
-        key = "effectValue:" + ((Command.EffectEdit) c.value()).id();
-      if (c.type().equals("parameter")
-          || c.type().equals("reload")
-          || c.type().equals("effectValue")
-          || c.type().equals("discoveryScan")
-          || c.type().equals("discoveryThumbnails")) edits.put(key, c);
-      else apply(c);
-    }
-    edits.values().forEach(this::apply);
+    Command.drain(commands, this::apply);
   }
 
   private void apply(Command c) {
@@ -385,6 +377,36 @@ public final class Engine implements AutoCloseable {
     boolean resetBefore = reset;
     try {
       switch (c.type()) {
+        case "morphCapture" -> {
+          morph.capture((PresetMorph.Slot) c.value(), settings);
+          refreshMorph();
+          status("Captured morph endpoint " + c.value() + "; live scene preserved");
+          return;
+        }
+        case "morphLoad" -> {
+          var request = (Command.MorphLoad) c.value();
+          long generation = morph.begin(request.slot());
+          enqueueIO(() ->
+              submit(
+                  new Command(
+                      "morphLoaded",
+                      new Command.MorphLoaded(
+                          request.slot(), generation, PresetIO.load(request.path())))));
+          return;
+        }
+        case "morphLoaded" -> {
+          var loaded = (Command.MorphLoaded) c.value();
+          if (morph.complete(loaded.slot(), loaded.generation(), loaded.settings())) {
+            refreshMorph();
+            status("Loaded morph endpoint " + loaded.slot() + "; live scene preserved");
+          }
+          return;
+        }
+        case "morphBlend" -> {
+          Settings candidate = morph.blend(settings, ((Number) c.value()).doubleValue());
+          remember();
+          settings = candidate;
+        }
         case "pause" -> {
           settings.paused = !settings.paused;
           discardElapsed = true;
@@ -659,6 +681,7 @@ public final class Engine implements AutoCloseable {
           discardElapsed = true;
           if (controls != null) controls.sync(settings);
           status("Discovery opened as a configuration; state restarted");
+          refreshMorph();
           return;
         }
         case "discoveryReference" -> {
@@ -747,6 +770,18 @@ public final class Engine implements AutoCloseable {
       settings.validate();
       dev.visualengine.authoring.EffectPackage.resolveResources(settings);
       renderer.configure(settings);
+      if (c.type().equals("morphBlend")) {
+        boolean stoppedReplay = playbackLog != null;
+        playbackLog = null;
+        replayBrush = false;
+        status(
+            String.format(
+                Locale.ROOT,
+                "Morph applied: %.1f%% B; state and phase preserved%s",
+                ((Number) c.value()).doubleValue() * 100,
+                stoppedReplay ? "; replay stopped" : ""));
+        if (controls != null) controls.sync(settings);
+      }
       if (c.type().equals("quality")) {
         boolean stoppedReplay = playbackLog != null;
         playbackLog = null;
@@ -763,14 +798,20 @@ public final class Engine implements AutoCloseable {
           && recordingLog != null
           && !c.type().equals("record")
           && !c.type().equals("saveReplay")) recordingLog.recordControl(clock.tick() + 1, settings);
+      refreshMorph();
     } catch (Exception e) {
       sourceDiscovery = sourceBefore;
       reset = resetBefore;
       settings = before;
       if (controls != null) controls.sync(settings);
+      refreshMorph();
       System.err.println(e);
       status(e.getMessage());
     }
+  }
+
+  private void refreshMorph() {
+    if (controls != null) controls.showMorph(morph.view(settings));
   }
 
   private void restoreCheckpoint(CheckpointIO.Snapshot snapshot) {
@@ -804,6 +845,7 @@ public final class Engine implements AutoCloseable {
     undo.clear();
     previous.close();
     if (controls != null) controls.sync(settings);
+    refreshMorph();
     status("Checkpoint resumed at tick " + clock.tick());
   }
 
