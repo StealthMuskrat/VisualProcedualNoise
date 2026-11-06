@@ -64,6 +64,9 @@ public final class Benchmark {
     report.add("gpuTickMs", summary(tick.values));
     report.add("renderCoverage", render.coverage());
     report.add("tickCoverage", tick.coverage());
+    report.add("cpuFrameSamplesMs", PresetIO.JSON.toJsonTree(cpu));
+    report.add("gpuRenderSamples", PresetIO.JSON.toJsonTree(render.samples));
+    report.add("gpuTickSamples", PresetIO.JSON.toJsonTree(tick.samples));
     return report;
   }
 
@@ -87,6 +90,7 @@ public final class Benchmark {
   private final class Stream {
     final Set<Long> seen = new HashSet<>();
     final List<Double> values = new ArrayList<>();
+    final List<GpuTimer.Sample> samples = new ArrayList<>();
     int completedWarmup, skippedWarmup, skippedMeasured, pending;
 
     void accept(GpuTimer.Batch batch) {
@@ -97,7 +101,10 @@ public final class Benchmark {
         if (seen.size() > MAX_FRAMES * 8)
           throw new IllegalArgumentException("GPU timing sample limit exceeded");
         if (sample.frame() < warmup) completedWarmup++;
-        else values.add(sample.milliseconds());
+        else {
+          values.add(sample.milliseconds());
+          samples.add(sample);
+        }
       }
       for (long frame : batch.skippedFrames()) {
         if (frame < 0 || frame >= frames)

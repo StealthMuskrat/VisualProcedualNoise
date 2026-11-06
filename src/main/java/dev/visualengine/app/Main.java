@@ -40,6 +40,9 @@ public final class Main {
               + "--map-size WIDTHxHEIGHT --map-range MIN:MAX (height/color/emission only)\n"
               + "--export DIRECTORY --frames N --fps 24|30|60|120 --warmup TICKS\n"
               + "--replay take.replay.json --list-recipes\n"
+              + "--benchmark FILE.json --frames N>30 (individual ticks; --fps >=15)\n"
+              + "--benchmark-suite NEW_DIRECTORY --benchmark-profile smoke|quick|standard"
+              + " [--shaders DIRECTORY]\n"
               + "--checkpoint study.vstate --save-checkpoint study.vstate\n"
               + "--bookmark LABEL --discoveries DIRECTORY --discovery ID --reference-discovery ID\n"
               + "Interactive: Space pause, period step, R reset, F5 reload, F11 fullscreen, Tab"
@@ -64,8 +67,15 @@ public final class Main {
               true,
               java.nio.charset.StandardCharsets.UTF_8)) {
         System.setErr(log);
-        try (Engine engine = new Engine(Options.parse(args), data)) {
-          engine.run();
+        try {
+          Options options = Options.parse(args);
+          if (options.benchmarkSuite != null)
+            dev.visualengine.export.BenchmarkSuite.run(
+                options.benchmarkSuite, options.benchmarkProfile, options.shaders);
+          else
+            try (Engine engine = new Engine(options, data)) {
+              engine.run();
+            }
         } catch (Exception e) {
           e.printStackTrace(log);
           throw e;
@@ -75,7 +85,8 @@ public final class Main {
       }
     } catch (Exception e) {
       e.printStackTrace();
-      if (!java.awt.GraphicsEnvironment.isHeadless())
+      if (!java.awt.GraphicsEnvironment.isHeadless()
+          && !java.util.Arrays.asList(args).contains("--benchmark-suite"))
         javax.swing.JOptionPane.showMessageDialog(
             null,
             e.getMessage() + "\nLog: " + data,

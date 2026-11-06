@@ -23,6 +23,10 @@ public final class Options {
   public String expression;
   public Path export, replay;
   public Path benchmark;
+  public Path benchmarkSuite;
+  public dev.visualengine.export.BenchmarkWorkloads.Profile benchmarkProfile =
+      dev.visualengine.export.BenchmarkWorkloads.Profile.QUICK;
+  private boolean explicitBenchmarkProfile;
   public int fps = 60, warmup;
   public dev.visualengine.model.Settings.Recipe recipe;
   public dev.visualengine.model.QualityProfile quality;
@@ -78,6 +82,13 @@ public final class Options {
         }
         case "--replay" -> o.replay = Path.of(args[++i]);
         case "--benchmark" -> o.benchmark = Path.of(args[++i]);
+        case "--benchmark-suite" -> o.benchmarkSuite = Path.of(args[++i]);
+        case "--benchmark-profile" -> {
+          o.benchmarkProfile =
+              dev.visualengine.export.BenchmarkWorkloads.Profile.valueOf(
+                  args[++i].toUpperCase(java.util.Locale.ROOT));
+          o.explicitBenchmarkProfile = true;
+        }
         case "--fps" -> o.fps = Integer.parseInt(args[++i]);
         case "--warmup" -> o.warmup = Integer.parseInt(args[++i]);
         case "--recipe" ->
@@ -92,6 +103,18 @@ public final class Options {
         case "--seed" -> o.seed = Long.parseLong(args[++i]);
         default -> throw new IllegalArgumentException("Unknown option: " + args[i]);
       }
+    if (o.benchmarkSuite != null) {
+      var allowed =
+          java.util.Set.of("--benchmark-suite", "--benchmark-profile", "--headless", "--shaders");
+      for (String arg : args)
+        if (arg.startsWith("--") && !allowed.contains(arg))
+          throw new IllegalArgumentException(
+              "Benchmark suite pins its workload; unsupported override: " + arg);
+      o.headless = true;
+      return o;
+    }
+    if (o.explicitBenchmarkProfile)
+      throw new IllegalArgumentException("--benchmark-profile requires --benchmark-suite");
     if (o.width < 32
         || o.height < 32
         || o.width > 8192

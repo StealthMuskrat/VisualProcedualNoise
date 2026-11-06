@@ -53,6 +53,17 @@ public final class BenchmarkChecks {
             && report.getAsJsonObject("gpuTickMs").get("count").getAsInt() == 2
             && report.get("referenceTick").getAsLong() == 8,
         "frame and individual-tick measurements retain their own sample counts and tick context");
+    check(
+        report.getAsJsonArray("cpuFrameSamplesMs").size() == 2
+            && report.getAsJsonArray("gpuRenderSamples").size() == 2
+            && report
+                    .getAsJsonArray("gpuTickSamples")
+                    .get(0)
+                    .getAsJsonObject()
+                    .get("frame")
+                    .getAsInt()
+                == 2,
+        "raw samples retain measured CPU values and GPU frame attribution");
     check(!Benchmark.summary(List.of()).has("p50"), "missing timing data is not reported as zero");
     var percentiles =
         Benchmark.summary(
