@@ -206,6 +206,7 @@ public final class CoreChecks {
     count += BenchmarkCliChecks.run();
     count += PresentationChecks.run();
     count += PresentationUiChecks.run();
+    count += DesktopChecks.run();
     System.out.println("Core checks passed: " + count);
   }
 
