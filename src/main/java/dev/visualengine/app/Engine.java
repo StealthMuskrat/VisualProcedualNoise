@@ -32,8 +32,13 @@ public final class Engine implements AutoCloseable {
     public Engine(Options options,Path data) { this.options=options;this.data=data; }
     public void run() throws Exception {
         if(options.preset!=null)settings=PresetIO.load(options.preset);
+        if(options.recipe!=null)dev.visualengine.model.Recipes.apply(settings,options.recipe);
+        if(options.grid!=null)settings.grid=options.grid;
+        if(options.seed!=null)settings.seed=options.seed;
+        settings.validate();
         window=new Window(options.width,options.height,options.headless);
         renderer=new Renderer(new ShaderSources(options.shaders));
+        renderer.configure(settings);
         device=glGetString(GL_VENDOR)+" / "+glGetString(GL_RENDERER)+" / "+glGetString(GL_VERSION);
         if(!options.headless)controls=new ControlPanel(this::submit,settings,data);
         glfwSetKeyCallback(window.handle,(win,key,scan,action,mods)-> {
@@ -58,14 +63,15 @@ public final class Engine implements AutoCloseable {
         while(!window.closing()&&(options.frames==0||rendered<options.frames)) {
             glfwPollEvents();window.resize();drain();double now=glfwGetTime(),elapsed=now-last;last=now;
             if(window.width==0||window.height==0){glfwWaitEventsTimeout(.1);continue;}
-            if(reset){clock.reset();reset=false;}
+            if(reset){clock.reset();renderer.reset(settings);reset=false;}
             int steps=options.headless?2:clock.accumulate(elapsed,settings.speed,settings.paused);
             if(step){steps=1;step=false;}
-            for(int j=0;j<steps;j++)clock.advance();
             glfwGetCursorPos(window.handle,px,py);glfwGetWindowSize(window.handle,ww,wh);
             double x=(px[0]/Math.max(1,ww[0])*2-1)*window.width/window.height,y=1-py[0]/Math.max(1,wh[0])*2;
             boolean brush=glfwGetWindowAttrib(window.handle,GLFW_FOCUSED)==GLFW_TRUE&&glfwGetMouseButton(window.handle,GLFW_MOUSE_BUTTON_LEFT)==GLFW_PRESS;
+            for(int j=0;j<steps;j++){renderer.tick(settings,clock.seconds()+Playback.DT,(double)window.width/window.height,x,y,brush);clock.advance();}
             renderer.render(settings,clock.seconds(),window.width,window.height,x,y,brush);
+            if(rendered%120==0&&controls!=null)controls.showStatus(String.format(java.util.Locale.ROOT,"Tick %d | GPU %.2f ms | %.1f MiB",clock.tick(),renderer.gpuMilliseconds(),renderer.bytes()/1048576.));
             if(capture!=null){capture(capture);capture=null;}
             if(options.capture!=null&&rendered+1==options.frames)capture(options.capture);
             glfwSwapBuffers(window.handle);rendered++;
@@ -100,7 +106,7 @@ public final class Engine implements AutoCloseable {
                 case "palette" -> {remember();settings.palette=(int)c.value();}
                 case "debug" -> settings.debug=(int)c.value();
                 case "seed" -> {remember();settings.seed=(long)c.value();reset=true;}
-                case "recipe" -> {remember();settings.recipe=(Settings.Recipe)c.value();reset=true;}
+                case "recipe" -> {remember();dev.visualengine.model.Recipes.apply(settings,(Settings.Recipe)c.value());reset=true;if(controls!=null)controls.sync(settings);}
                 case "feedbackEnabled" -> settings.feedbackEnabled=(boolean)c.value();
                 case "pigmentEnabled" -> settings.pigmentEnabled=(boolean)c.value();
                 case "reactionEnabled" -> settings.reactionEnabled=(boolean)c.value();
@@ -126,7 +132,7 @@ public final class Engine implements AutoCloseable {
                 case "capture" -> capture=(Path)c.value();
                 default -> throw new IllegalArgumentException("Unknown command "+c.type());
             }
-            settings.validate();
+            settings.validate();renderer.configure(settings);
         } catch(Exception e){settings=before;if(controls!=null)controls.sync(settings);System.err.println(e);status(e.getMessage());}
     }
     @FunctionalInterface private interface IOAction {void run() throws Exception;}

@@ -1,0 +1,19 @@
+#version 430 core
+layout(local_size_x=8,local_size_y=8) in;
+layout(rg32f,binding=0) writeonly uniform image2D outputFlow;
+uniform uint seed;
+uniform float flow,aspect;
+uniform vec2 motionPhase;
+uniform vec4 pointer;
+#include "../common/noise.glsl"
+void main() {
+    ivec2 pixel=ivec2(gl_GlobalInvocationID.xy),extent=imageSize(outputFlow);
+    if(any(greaterThanEqual(pixel,extent)))return;
+    vec2 uv=(vec2(pixel)+.5)/vec2(extent),p=(uv*2.-1.)*vec2(aspect,1.);
+    vec3 q=vec3(p*1.3+vec2(cos(motionPhase.x),sin(motionPhase.x)),.8);
+    float e=.02;
+    vec2 grad=vec2(noise3d(q+vec3(e,0,0))-noise3d(q-vec3(e,0,0)),noise3d(q+vec3(0,e,0))-noise3d(q-vec3(0,e,0)))/(2.*e);
+    vec2 velocity=vec2(grad.y,-grad.x)*flow*.35;
+    vec2 d=p-pointer.xy;velocity+=pointer.w*vec2(-d.y,d.x)*exp(-dot(d,d)/(pointer.z*pointer.z))*3.;
+    imageStore(outputFlow,pixel,vec4(velocity,0,0));
+}

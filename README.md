@@ -14,6 +14,10 @@ Presets are versioned JSON and restart simulation state. A PNG sidecar preserves
 
 Local offscreen checks can use `./gradlew run --args="--headless --frames 3 --size 480x300 --capture output.png"` with Mesa EGL (`EGL_PLATFORM=surfaceless`) on Linux. This is a development path; Windows remains the distribution target.
 
+Use `--recipe fluid-palette --grid 257` to exercise pigment transport on an odd-sized grid. The scheduler runs at 120 Hz with an eight-tick interactive catch-up cap. Excess interactive backlog is discarded; offline runs advance integer ticks directly. The simulation grid survives viewport resize, and changing grid size resets it. The normalized state is remapped to the current viewport aspect.
+
+Pigments use midpoint semi-Lagrangian transport, periodic boundaries, a small artistic diffusion term, exponential decay, then injection in domain units. This method is diffusive and does not conserve mass. Feedback stores bounded pre-tonemapped linear color on fixed ticks, with distinct previous and next images. Display encoding occurs once in the final pass. Quality settings never adapt the simulation automatically.
+
 For editable engine resources: `gradlew.bat run --args="--shaders src/main/resources/shaders"`. These resources are for engine development; user effect authoring uses templates and bounded formulas.
 
 Dependencies are pinned to LWJGL 3.4.3 and Gradle 9.1.0. Gradle's [9.1 release notes](https://docs.gradle.org/9.1.0/release-notes.html) confirm Java 25 support. See [LWJGL releases](https://github.com/LWJGL/lwjgl3/releases) and [FFM documentation](https://github.com/LWJGL/lwjgl3/blob/master/doc/FFM.md) for its Java 25 backend. Classpath launches explicitly enable native access.
