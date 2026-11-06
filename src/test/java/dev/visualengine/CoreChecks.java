@@ -188,6 +188,7 @@ public final class CoreChecks {
     fixture.recordControl(6, fixtureSettings);
     fixture.endTick = 12;
     fixture.save(java.nio.file.Path.of("build/reports/replay-fixture.json"));
+    count += AuthoringChecks.run();
     System.out.println("Core checks passed: " + count);
   }
 

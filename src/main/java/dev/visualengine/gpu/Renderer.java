@@ -59,9 +59,14 @@ public final class Renderer implements AutoCloseable {
     String gradient = null;
     if (settings.recipe == Settings.Recipe.CUSTOM) {
       if (settings.graphEnabled)
-        function = dev.visualengine.authoring.GraphCompiler.compile(settings.graph).function();
+        function =
+            dev.visualengine.authoring.GraphCompiler.compile(
+                    settings.graph, settings.effectControls)
+                .function();
       else {
-        var compiled = dev.visualengine.authoring.Formula.compile(settings.expression);
+        var compiled =
+            dev.visualengine.authoring.EffectControl.compile(
+                settings.expression, settings.effectControls);
         if (compiled.root().type() != dev.visualengine.authoring.Formula.Type.FLOAT)
           throw new IllegalArgumentException("Material formulas must return a scalar");
         function = "float customField(vec2 p){return " + compiled.expression() + ";}\n";
@@ -78,11 +83,15 @@ public final class Renderer implements AutoCloseable {
     return sources
         .read("render/material.frag")
         .replace("#define recipe 0", "#define recipe " + settings.recipe.ordinal())
-        .replace("// @CUSTOM_FIELD@", function);
+        .replace(
+            "// @CUSTOM_FIELD@",
+            dev.visualengine.authoring.EffectControl.declarations(settings.effectControls)
+                + function);
   }
 
   private boolean structureChanged(Settings s) {
-    if (compiledSettings.recipe != s.recipe) return true;
+    if (compiledSettings.recipe != s.recipe
+        || !compiledSettings.effectControls.equals(s.effectControls)) return true;
     if (s.recipe != Settings.Recipe.CUSTOM) return false;
     return compiledSettings.graphEnabled != s.graphEnabled
         || !java.util.Objects.equals(compiledSettings.expression, s.expression)
@@ -235,6 +244,10 @@ public final class Renderer implements AutoCloseable {
     return tickTimer.milliseconds();
   }
 
+  public int materialProgramId() {
+    return material.id;
+  }
+
   public Simulation diagnostics() {
     return simulation;
   }
@@ -280,6 +293,16 @@ public final class Renderer implements AutoCloseable {
     p.i("debugView", s.debug);
     p.v4("pointer", x, y, s.get("radius"), brush ? 1 : 0);
     s.values.forEach(p::f);
+    for (var c : s.effectControls) {
+      var v = s.effectValues.get(c.id());
+      String n = "user_" + c.id();
+      switch (c.type()) {
+        case FLOAT -> p.f(n, v.get(0));
+        case VEC2 -> p.v2(n, v.get(0), v.get(1));
+        case VEC3 -> p.v3(n, v.get(0), v.get(1), v.get(2));
+        case VEC4 -> p.v4(n, v.get(0), v.get(1), v.get(2), v.get(3));
+      }
+    }
   }
 
   @Override

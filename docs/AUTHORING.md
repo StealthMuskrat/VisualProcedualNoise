@@ -32,4 +32,10 @@ The compiler validates all fragments, removes disconnected execution work, topol
 
 ## Effect files
 
+Effect API 2 adds user-defined FLOAT, VEC2, VEC3 and VEC4 controls. The Effect controls tab edits descriptors and generates component controls from their labels, units, defaults, bounds, steps, linear/logarithmic mapping and update policy. Use a descriptor ID directly in a formula. Values are uploaded as namespaced uniforms; ordinary value edits keep the linked program. SMOOTHED values converge on fixed ticks, while RESET controls restart persistent state.
+
+Schemas are limited to sixteen controls. IDs cannot shadow built-in controls or formula symbols. Every vector component must match its declared width and bounds. Preset schema 4 stores descriptors and resolved values; older preset schemas retain their previous behavior with an empty custom schema.
+
+Exported API 2 packages include custom controls, values and requested state-system flags. A canonical SHA-256 definition hash identifies their complete contents and is checked on import. For an intentional manual JSON edit, remove the old definitionHash and export again after validation. API 1 packages remain readable.
+
 Export reusable effect writes a self-contained JSON manifest with API version, stable ID, version, author/license fields, coordinate/time contract, promoted controls and an expression or resolved graph. The first API exposes the engine's fixed promoted controls. Group labels and comments stay with graph nodes; the exported graph pins its resolved content. Imported manifests are capped at 1 MiB and accept data definitions only. External files and executable extensions are not loaded. Presets use schema 3; earlier schemas gain authoring and macro controls through explicit migrations.

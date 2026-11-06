@@ -287,7 +287,11 @@ public final class Engine implements AutoCloseable {
     while ((c = commands.poll()) != null) {
       String key =
           c.type().equals("parameter") ? "parameter:" + ((Command.Edit) c.value()).id() : c.type();
-      if (c.type().equals("parameter") || c.type().equals("reload")) edits.put(key, c);
+      if (c.type().equals("effectValue"))
+        key = "effectValue:" + ((Command.EffectEdit) c.value()).id();
+      if (c.type().equals("parameter")
+          || c.type().equals("reload")
+          || c.type().equals("effectValue")) edits.put(key, c);
       else apply(c);
     }
     edits.values().forEach(this::apply);
@@ -450,9 +454,31 @@ public final class Engine implements AutoCloseable {
         case "bookmark" ->
             capture =
                 data.resolve("discoveries").resolve("study-" + System.currentTimeMillis() + ".png");
+        case "effectValue" -> {
+          remember();
+          var edit = (Command.EffectEdit) c.value();
+          settings.setEffectValue(edit.id(), edit.value());
+          if (settings.effectControl(edit.id()).update()
+              == dev.visualengine.authoring.EffectControl.Update.RESET) reset = true;
+        }
+        case "effectControls" -> {
+          remember();
+          var controls =
+              ((java.util.List<?>) c.value())
+                  .stream().map(dev.visualengine.authoring.EffectControl.class::cast).toList();
+          java.util.Map<String, java.util.List<Double>> retained = new java.util.LinkedHashMap<>();
+          for (var control : controls)
+            if (settings.effectValues.containsKey(control.id())
+                && settings.effectValues.get(control.id()).size() == control.type().width)
+              retained.put(control.id(), settings.effectValues.get(control.id()));
+          settings.installEffectControls(controls, retained);
+          if (this.controls != null) this.controls.sync(settings);
+        }
         case "expression" -> {
           remember();
-          var f = dev.visualengine.authoring.Formula.compile((String) c.value());
+          var f =
+              dev.visualengine.authoring.EffectControl.compile(
+                  (String) c.value(), settings.effectControls);
           if (f.root().type() != dev.visualengine.authoring.Formula.Type.FLOAT)
             throw new IllegalArgumentException("Formula output must be scalar");
           settings.expression = (String) c.value();
@@ -462,7 +488,8 @@ public final class Engine implements AutoCloseable {
         case "graph" -> {
           remember();
           var g = (dev.visualengine.authoring.EffectGraph) c.value();
-          var compiled = dev.visualengine.authoring.GraphCompiler.compile(g);
+          var compiled =
+              dev.visualengine.authoring.GraphCompiler.compile(g, settings.effectControls);
           settings.graph = g.copy();
           settings.graphEnabled = true;
           settings.recipe = Settings.Recipe.CUSTOM;
@@ -484,6 +511,12 @@ public final class Engine implements AutoCloseable {
         case "exportEffect" -> {
           var effect = new dev.visualengine.authoring.EffectPackage();
           effect.parameters = new java.util.LinkedHashMap<>(settings.values);
+          effect.controls = new java.util.ArrayList<>(settings.effectControls);
+          effect.controlValues = new java.util.LinkedHashMap<>(settings.effectValues);
+          effect.feedbackEnabled = settings.feedbackEnabled;
+          effect.pigmentEnabled = settings.pigmentEnabled;
+          effect.reactionEnabled = settings.reactionEnabled;
+          effect.particlesEnabled = settings.particlesEnabled;
           effect.expression = settings.expression;
           effect.graph = settings.graph.copy();
           effect.authoring = settings.graphEnabled ? "graph" : "expression";
@@ -494,7 +527,7 @@ public final class Engine implements AutoCloseable {
       settings.validate();
       dev.visualengine.authoring.EffectPackage.resolveResources(settings);
       renderer.configure(settings);
-      if (settings.paused) signals.snap(settings);
+      if (settings.paused || c.type().equals("effectControls")) signals.snap(settings);
       if (recording
           && recordingLog != null
           && !c.type().equals("record")

@@ -27,10 +27,16 @@ public final class GraphCompiler {
   private final Set<String> active = new HashSet<>(), resources = new TreeSet<>();
   private final List<String> lines = new ArrayList<>(), order = new ArrayList<>();
   private int expandedCost;
+  private List<EffectControl> controls = List.of();
 
   private GraphCompiler() {}
 
   public static Compiled compile(EffectGraph graph) {
+    return compile(graph, List.of());
+  }
+
+  public static Compiled compile(EffectGraph graph, List<EffectControl> controls) {
+    EffectControl.validateSchema(controls);
     if (graph == null
         || graph.nodes == null
         || graph.nodes.isEmpty()
@@ -38,6 +44,7 @@ public final class GraphCompiler {
         || graph.output == null)
       throw new IllegalArgumentException("Graph requires 1..64 nodes and an output");
     GraphCompiler c = new GraphCompiler();
+    c.controls = List.copyOf(controls);
     for (var n : graph.nodes) {
       if (n == null
           || n.kind() == null
@@ -113,7 +120,7 @@ public final class GraphCompiler {
     switch (n.kind()) {
       case FORMULA -> {
         arity(n, in, 0);
-        var f = Formula.compile(n.expression());
+        var f = EffectControl.compile(n.expression(), controls);
         if (f.root().type() != Formula.Type.FLOAT)
           throw new IllegalArgumentException(n.id() + ": formula field must be scalar");
         expandedCost += f.root().cost();

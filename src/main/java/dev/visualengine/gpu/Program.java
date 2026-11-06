@@ -70,6 +70,10 @@ public final class Program implements AutoCloseable {
     glUniform4f(loc(n), (float) x, (float) y, (float) z, (float) w);
   }
 
+  public void v3(String n, double x, double y, double z) {
+    glUniform3f(loc(n), (float) x, (float) y, (float) z);
+  }
+
   public void require(String... names) {
     for (String n : names)
       if (loc(n) < 0) throw new IllegalArgumentException("Required shader uniform missing: " + n);

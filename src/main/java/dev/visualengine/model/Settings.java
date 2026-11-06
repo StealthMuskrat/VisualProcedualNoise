@@ -68,6 +68,8 @@ public final class Settings {
   public List<dev.visualengine.time.Modulation> modulations = new ArrayList<>();
   public boolean paused, feedbackEnabled, pigmentEnabled, reactionEnabled, particlesEnabled;
   public boolean graphEnabled;
+  public List<dev.visualengine.authoring.EffectControl> effectControls = new ArrayList<>();
+  public final LinkedHashMap<String, List<Double>> effectValues = new LinkedHashMap<>();
   public dev.visualengine.authoring.EffectGraph graph =
       new dev.visualengine.authoring.EffectGraph();
   public String expression =
@@ -111,6 +113,8 @@ public final class Settings {
     s.particlesEnabled = particlesEnabled;
     s.expression = expression;
     s.graphEnabled = graphEnabled;
+    s.effectControls = new ArrayList<>(effectControls);
+    effectValues.forEach((id, value) -> s.effectValues.put(id, List.copyOf(value)));
     s.graph = graph == null ? null : graph.copy();
     s.loopSeconds = loopSeconds;
     s.tileMode = tileMode;
@@ -127,6 +131,16 @@ public final class Settings {
   }
 
   public void validate() {
+    dev.visualengine.authoring.EffectControl.validateSchema(effectControls);
+    if (effectValues == null
+        || !effectValues
+            .keySet()
+            .equals(
+                effectControls.stream()
+                    .map(dev.visualengine.authoring.EffectControl::id)
+                    .collect(java.util.stream.Collectors.toSet())))
+      throw new IllegalArgumentException("Effect control values do not match the schema");
+    effectControls.forEach(c -> c.validateValue(effectValues.get(c.id())));
     if (graph == null || expression == null || name == null || recipe == null || locks == null)
       throw new IllegalArgumentException("Incomplete scene configuration");
     PARAMETERS.forEach(p -> p.validate(get(p.id())));
@@ -168,5 +182,32 @@ public final class Settings {
       throw new IllegalArgumentException(
           "Tile and analytic loop modes require an analytic scene without state, graph resources or"
               + " modulation");
+  }
+
+  public void installEffectControls(
+      List<dev.visualengine.authoring.EffectControl> controls, Map<String, List<Double>> values) {
+    dev.visualengine.authoring.EffectControl.validateSchema(controls);
+    var next = new LinkedHashMap<String, List<Double>>();
+    for (var c : controls)
+      next.put(c.id(), c.validateValue(values.getOrDefault(c.id(), c.initial())));
+    if (!controls.stream()
+        .map(dev.visualengine.authoring.EffectControl::id)
+        .collect(java.util.stream.Collectors.toSet())
+        .containsAll(values.keySet()))
+      throw new IllegalArgumentException("Unknown effect control value");
+    effectControls = new ArrayList<>(controls);
+    effectValues.clear();
+    effectValues.putAll(next);
+  }
+
+  public dev.visualengine.authoring.EffectControl effectControl(String id) {
+    return effectControls.stream()
+        .filter(c -> c.id().equals(id))
+        .findFirst()
+        .orElseThrow(() -> new IllegalArgumentException("Unknown effect control: " + id));
+  }
+
+  public void setEffectValue(String id, List<Double> value) {
+    effectValues.put(id, effectControl(id).validateValue(value));
   }
 }

@@ -16,7 +16,7 @@ public final class PresetIO {
   public static JsonObject document(Settings settings, long tick) {
     settings.validate();
     JsonObject root = new JsonObject();
-    root.addProperty("schemaVersion", 3);
+    root.addProperty("schemaVersion", 4);
     root.addProperty("engineVersion", "0.1.0");
     root.addProperty("algorithmRevision", REVISION);
     root.addProperty("rootSeed", Long.toString(settings.seed));
@@ -36,9 +36,9 @@ public final class PresetIO {
     JsonObject root = JsonParser.parseString(text).getAsJsonObject();
     if (!root.has("schemaVersion")
         || root.get("schemaVersion").getAsInt() < 1
-        || root.get("schemaVersion").getAsInt() > 3)
+        || root.get("schemaVersion").getAsInt() > 4)
       throw new IllegalArgumentException(
-          "Unsupported preset schema. This build accepts versions 1..3.");
+          "Unsupported preset schema. This build accepts versions 1..4.");
     if (!root.has("algorithmRevision")
         || !REVISION.equals(root.get("algorithmRevision").getAsString()))
       throw new IllegalArgumentException(
@@ -58,6 +58,8 @@ public final class PresetIO {
       throw new IllegalArgumentException("Preset controls are incomplete");
     if (s.name.length() > 256 || s.expression.length() > 8192)
       throw new IllegalArgumentException("Preset text exceeds limit");
+    s.validate();
+    dev.visualengine.authoring.EffectPackage.resolveResources(s);
     s.validate();
     return s;
   }

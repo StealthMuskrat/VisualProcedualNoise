@@ -98,6 +98,21 @@ public final class GpuChecks {
           "A/B frozen left preserves encoded pixel");
       renderer.clearReference();
       Set<Integer> signatures = new HashSet<>();
+      s = settings();
+      s.recipe = Settings.Recipe.CUSTOM;
+      s.installEffectControls(
+          List.of(AuthoringChecks.scalar(), AuthoringChecks.vector()), Map.of());
+      s.expression = "amplitude*sin(p.x*frequency)+dot(tint,vec3(.2,.3,.5))";
+      renderer.configure(s);
+      int program = renderer.materialProgramId();
+      renderer.render(s, 0, 96, 64, 0, 0, false);
+      int[] uniformBefore = image();
+      s.setEffectValue("amplitude", List.of(2.));
+      s.setEffectValue("tint", List.of(.9, .1, .2));
+      renderer.render(s, 0, 96, 64, 0, 0, false);
+      check(
+          program == renderer.materialProgramId() && !Arrays.equals(uniformBefore, image()),
+          "custom uniform values change image without relinking");
       for (var recipe : Settings.Recipe.values()) {
         s = settings();
         Recipes.apply(s, recipe);

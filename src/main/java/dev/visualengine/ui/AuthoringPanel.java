@@ -26,9 +26,11 @@ public final class AuthoringPanel extends JPanel {
   private final JLabel diagnostic = new JLabel("Ready");
   private final Deque<EffectGraph> undo = new ArrayDeque<>();
   private String selected;
+  private java.util.List<EffectControl> controls = java.util.List.of();
 
   public AuthoringPanel(Consumer<Command> submit, Settings settings) {
     this.submit = submit;
+    controls = java.util.List.copyOf(settings.effectControls);
     graph = settings.graph.copy();
     expression.setText(settings.expression);
     setLayout(new BorderLayout());
@@ -51,7 +53,7 @@ public final class AuthoringPanel extends JPanel {
     JButton apply = new JButton("Apply formula");
     apply.addActionListener(e -> {
       try {
-        Formula.compile(expression.getText());
+        EffectControl.compile(expression.getText(), controls);
         submit.accept(new Command("expression", expression.getText()));
         diagnostic.setText("Formula submitted");
       } catch (Exception ex) {
@@ -195,7 +197,7 @@ public final class AuthoringPanel extends JPanel {
   private void applyGraph() {
     try {
       graph.output = output.getText().trim();
-      var compiled = GraphCompiler.compile(graph);
+      var compiled = GraphCompiler.compile(graph, controls);
       submit.accept(new Command("graph", graph.copy()));
       diagnostic.setText("Applied " + compiled.order().size() + " reachable nodes");
     } catch (Exception ex) {
@@ -205,7 +207,7 @@ public final class AuthoringPanel extends JPanel {
 
   private void refresh() {
     try {
-      var c = GraphCompiler.compile(graph);
+      var c = GraphCompiler.compile(graph, controls);
       diagnostic.setText("Valid scalar graph · " + c.order().size() + " active nodes");
     } catch (Exception e) {
       diagnostic.setText(e.getMessage());
@@ -214,6 +216,7 @@ public final class AuthoringPanel extends JPanel {
   }
 
   public void sync(Settings s) {
+    controls = java.util.List.copyOf(s.effectControls);
     expression.setText(s.expression);
     graph = s.graph == null ? new EffectGraph() : s.graph.copy();
     output.setText(graph.output);

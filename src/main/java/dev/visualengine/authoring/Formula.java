@@ -51,7 +51,7 @@ public final class Formula {
       return switch (name) {
         case "t" -> "time";
         case "phase" -> "motionPhase.x";
-        default -> name;
+        default -> SYMBOLS.containsKey(name) ? name : "user_" + name;
       };
     }
 

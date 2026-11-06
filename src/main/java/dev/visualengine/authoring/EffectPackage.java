@@ -9,7 +9,12 @@ import java.nio.file.*;
  * Portable self-contained data manifest; imports do not load code, DLLs or external dependencies.
  */
 public final class EffectPackage {
-  public int effectApiVersion = 1;
+  public int effectApiVersion = 2;
+  public java.util.List<EffectControl> controls = new java.util.ArrayList<>();
+  public java.util.Map<String, java.util.List<Double>> controlValues =
+      new java.util.LinkedHashMap<>();
+  public String definitionHash = "";
+  public boolean feedbackEnabled, pigmentEnabled, reactionEnabled, particlesEnabled;
   public String id = "local.effect",
       version = "1.0.0",
       author = "",
@@ -24,7 +29,7 @@ public final class EffectPackage {
       new java.util.LinkedHashMap<>(new Settings().values);
 
   public void validate() {
-    if (effectApiVersion != 1
+    if ((effectApiVersion != 1 && effectApiVersion != 2)
         || id == null
         || !id.matches("[a-zA-Z][a-zA-Z0-9_.-]{0,127}")
         || version == null
@@ -38,11 +43,19 @@ public final class EffectPackage {
       throw new IllegalArgumentException("Effect state policy must be restart");
     if (parameters == null || parameters.size() > Settings.PARAMETERS.size())
       throw new IllegalArgumentException("Invalid effect parameters");
+    EffectControl.validateSchema(controls);
+    if (effectApiVersion == 1 && !controls.isEmpty())
+      throw new IllegalArgumentException("Custom control schemas require effect API 2");
+    if (controlValues == null) throw new IllegalArgumentException("Missing effect values");
+    if (definitionHash == null
+        || !definitionHash.isEmpty() && !definitionHash.equals(contentHash()))
+      throw new IllegalArgumentException("Effect definition hash does not match its content");
     Settings checked = new Settings();
+    checked.installEffectControls(controls, controlValues);
     parameters.forEach(checked::set);
-    if ("graph".equals(authoring)) GraphCompiler.compile(graph);
+    if ("graph".equals(authoring)) GraphCompiler.compile(graph, controls);
     else if ("expression".equals(authoring)) {
-      if (Formula.compile(expression).root().type() != Formula.Type.FLOAT)
+      if (EffectControl.compile(expression, controls).root().type() != Formula.Type.FLOAT)
         throw new IllegalArgumentException("Field expression must be scalar");
     } else throw new IllegalArgumentException("Unsupported authoring mode");
   }
@@ -56,6 +69,15 @@ public final class EffectPackage {
 
   public void apply(Settings s) {
     validate();
+    s.installEffectControls(controls, controlValues);
+    s.tileMode = false;
+    s.tilePreview = false;
+    s.loopSeconds = 0;
+    s.modulations.clear();
+    s.feedbackEnabled = feedbackEnabled;
+    s.pigmentEnabled = pigmentEnabled;
+    s.reactionEnabled = reactionEnabled;
+    s.particlesEnabled = particlesEnabled;
     s.expression = expression == null ? "0" : expression;
     s.graph = graph == null ? new EffectGraph() : graph.copy();
     s.graphEnabled = "graph".equals(authoring);
@@ -68,11 +90,11 @@ public final class EffectPackage {
   public static void resolveResources(Settings s) {
     if (s.recipe != Settings.Recipe.CUSTOM) return;
     if (s.graphEnabled) {
-      var resources = GraphCompiler.compile(s.graph).resources();
+      var resources = GraphCompiler.compile(s.graph, s.effectControls).resources();
       if (resources.contains("previousVisualColor")) s.feedbackEnabled = true;
       if (resources.contains("pigment")) s.pigmentEnabled = true;
     } else {
-      var compiled = Formula.compile(s.expression);
+      var compiled = EffectControl.compile(s.expression, s.effectControls);
       if (compiled.root().type() != Formula.Type.FLOAT)
         throw new IllegalArgumentException("Field expression must be scalar");
       if (s.loopSeconds > 0 && compiled.dependencies().contains("t"))
@@ -81,8 +103,45 @@ public final class EffectPackage {
     }
   }
 
+  public String contentHash() {
+    var json = PresetIO.JSON.toJsonTree(this).getAsJsonObject();
+    json.remove("definitionHash");
+    try {
+      return java.util.HexFormat.of()
+          .formatHex(
+              java.security.MessageDigest.getInstance("SHA-256")
+                  .digest(canonical(json).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    } catch (java.security.NoSuchAlgorithmException e) {
+      throw new AssertionError(e);
+    }
+  }
+
+  private static String canonical(com.google.gson.JsonElement value) {
+    if (value.isJsonObject()) {
+      var object = value.getAsJsonObject();
+      return "{"
+          + String.join(
+              ",",
+              new java.util.TreeSet<>(object.keySet())
+                  .stream()
+                      .map(k -> PresetIO.JSON.toJson(k) + ":" + canonical(object.get(k)))
+                      .toList())
+          + "}";
+    }
+    if (value.isJsonArray())
+      return "["
+          + String.join(
+              ",",
+              java.util.stream.StreamSupport.stream(value.getAsJsonArray().spliterator(), false)
+                  .map(EffectPackage::canonical)
+                  .toList())
+          + "]";
+    return value.toString();
+  }
+
   public void save(Path path) throws IOException {
     validate();
+    definitionHash = contentHash();
     PresetIO.atomicWrite(path, PresetIO.JSON.toJson(this));
   }
 }

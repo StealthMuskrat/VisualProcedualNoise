@@ -23,6 +23,7 @@ public final class ControlPanel implements AutoCloseable {
   private JComboBox<Settings.Recipe> recipes;
   private JComboBox<String> palette, debug;
   private AuthoringPanel authoring;
+  private EffectControlsPanel effectControls;
   private ModulationPanel modulation;
   private boolean syncing;
 
@@ -184,6 +185,8 @@ public final class ControlPanel implements AutoCloseable {
     tabs.addTab("Files", new JScrollPane(files));
     authoring = new AuthoringPanel(submit, s);
     tabs.addTab("Authoring", authoring);
+    effectControls = new EffectControlsPanel(submit, s);
+    tabs.addTab("Effect controls", effectControls);
     modulation = new ModulationPanel(submit, s);
     tabs.addTab("Modulation", modulation);
     frame.add(tabs, BorderLayout.CENTER);
@@ -267,6 +270,7 @@ public final class ControlPanel implements AutoCloseable {
       flags.get("reactionEnabled").setSelected(s.reactionEnabled);
       flags.get("particlesEnabled").setSelected(s.particlesEnabled);
       if (authoring != null) authoring.sync(s);
+      if (effectControls != null) effectControls.sync(s);
       if (modulation != null) modulation.sync(s);
       flags.get("tileMode").setSelected(s.tileMode);
       flags.get("tilePreview").setSelected(s.tilePreview);
