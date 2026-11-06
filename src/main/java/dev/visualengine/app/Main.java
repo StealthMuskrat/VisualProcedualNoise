@@ -33,6 +33,8 @@ public final class Main {
               + "--quality draft|balanced|detailed (applied before --grid override)\n"
               + "--headless --frames N --size WIDTHxHEIGHT --capture artwork.png\n"
               + "--capture-size WIDTHxHEIGHT (full-resolution still; window stays unchanged)\n"
+              + "--map height|normal|mask|linear-color|emission --map-output FILE.png\n"
+              + "--map-size WIDTHxHEIGHT --map-range MIN:MAX (height/color/emission only)\n"
               + "--export DIRECTORY --frames N --fps 24|30|60|120 --warmup TICKS\n"
               + "--replay take.replay.json --list-recipes\n"
               + "--checkpoint study.vstate --save-checkpoint study.vstate\n"

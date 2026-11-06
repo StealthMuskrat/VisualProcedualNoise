@@ -10,6 +10,10 @@ public final class Options {
   public Path discoveries;
   public String bookmark, discovery, referenceDiscovery;
   public dev.visualengine.export.CaptureSize captureSize;
+  public Path mapOutput;
+  public dev.visualengine.export.TextureMap.Kind mapKind;
+  public dev.visualengine.export.TextureMap.Range mapRange;
+  public dev.visualengine.export.CaptureSize mapSize;
   public Path checkpoint, saveCheckpoint;
   public boolean explicitSize;
   public String expression;
@@ -48,6 +52,11 @@ public final class Options {
         case "--capture" -> o.capture = Path.of(args[++i]);
         case "--capture-size" ->
             o.captureSize = dev.visualengine.export.CaptureSize.parse(args[++i]);
+        case "--map" -> o.mapKind = dev.visualengine.export.TextureMap.Kind.parse(args[++i]);
+        case "--map-output" -> o.mapOutput = Path.of(args[++i]);
+        case "--map-size" -> o.mapSize = dev.visualengine.export.CaptureSize.parse(args[++i]);
+        case "--map-range" ->
+            o.mapRange = dev.visualengine.export.TextureMap.Range.parse(args[++i]);
         case "--expression" -> {
           o.expression = args[++i];
           o.recipe = dev.visualengine.model.Settings.Recipe.CUSTOM;
@@ -108,6 +117,13 @@ public final class Options {
       throw new IllegalArgumentException("--capture-size requires --capture");
     if (o.replay != null && o.quality != null)
       throw new IllegalArgumentException("Replay uses its recorded quality; omit --quality");
+    if (o.mapKind != null || o.mapOutput != null || o.mapSize != null || o.mapRange != null) {
+      if (o.mapKind == null || o.mapOutput == null || o.frames == 0)
+        throw new IllegalArgumentException(
+            "Texture maps require --map TYPE --map-output FILE and --frames > 0");
+      if (o.mapRange == null) o.mapRange = o.mapKind.initialRange;
+      o.mapKind.validate(o.mapRange);
+    }
     return o;
   }
 }

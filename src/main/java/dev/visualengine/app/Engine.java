@@ -4,6 +4,7 @@ import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL43C.*;
 
 import dev.visualengine.export.Capture;
+import dev.visualengine.export.TextureMap;
 import dev.visualengine.gpu.*;
 import dev.visualengine.model.Settings;
 import dev.visualengine.platform.Window;
@@ -42,6 +43,9 @@ public final class Engine implements AutoCloseable {
       new dev.visualengine.export.Benchmark();
   private Path capture;
   private Command.Still stillCapture;
+  private Command.MapExport mapExport;
+  private final java.util.concurrent.atomic.AtomicBoolean mapBusy =
+      new java.util.concurrent.atomic.AtomicBoolean();
   private Path checkpointSave;
   private final java.util.concurrent.atomic.AtomicBoolean checkpointBusy =
       new java.util.concurrent.atomic.AtomicBoolean();
@@ -230,6 +234,20 @@ public final class Engine implements AutoCloseable {
       }
       if (options.capture != null && rendered + 1 == options.frames)
         captureStill(new Command.Still(options.capture, options.captureSize), options.headless);
+      if (mapExport != null) {
+        exportMap(mapExport, false);
+        mapExport = null;
+      }
+      if (options.mapOutput != null && rendered + 1 == options.frames)
+        exportMap(
+            new Command.MapExport(
+                options.mapOutput,
+                options.mapKind,
+                options.mapSize == null
+                    ? new dev.visualengine.export.CaptureSize(window.width, window.height)
+                    : options.mapSize,
+                options.mapRange),
+            options.headless);
       if (checkpointSave != null) {
         saveCheckpoint(checkpointSave, false);
         checkpointSave = null;
@@ -559,6 +577,10 @@ public final class Engine implements AutoCloseable {
           stillCapture = (Command.Still) c.value();
           return;
         }
+        case "exportMap" -> {
+          mapExport = (Command.MapExport) c.value();
+          return;
+        }
         case "freeze" -> freeze = true;
         case "clearReference" -> renderer.clearReference();
         case "bookmark" -> {
@@ -867,6 +889,62 @@ public final class Engine implements AutoCloseable {
 
   private void capture(Path path) {
     capture(path, false);
+  }
+
+  private void exportMap(Command.MapExport request, boolean offline) {
+    if (!mapBusy.compareAndSet(false, true)) {
+      status("Wait for the current texture-map export");
+      return;
+    }
+    try {
+      if (!offline && io.getQueue().remainingCapacity() == 0) {
+        mapBusy.set(false);
+        status("File queue full; wait before exporting a map");
+        return;
+      }
+      var active = signals.frame(settings);
+      var data =
+          renderer.captureMap(
+              active,
+              clock.seconds(),
+              request.kind(),
+              request.size(),
+              request.range(),
+              renderedPointer.x(),
+              renderedPointer.y(),
+              renderedPointer.brush());
+      var frame =
+          new TextureMap.Frame(
+              settings,
+              active,
+              clock.tick(),
+              device,
+              renderer.programSignature(),
+              renderedPointer.x(),
+              renderedPointer.y(),
+              renderedPointer.brush());
+      IOAction write =
+          () -> {
+            try {
+              long clipped = TextureMap.write(request.path(), data, frame);
+              status(
+                  "Exported "
+                      + request.kind().id()
+                      + " map: "
+                      + request.path()
+                      + " | clipped samples: "
+                      + clipped);
+            } finally {
+              mapBusy.set(false);
+            }
+          };
+      if (offline) enqueueIOBlocking(write);
+      else if (!enqueueIO(write)) mapBusy.set(false);
+    } catch (RuntimeException e) {
+      mapBusy.set(false);
+      if (options.headless) throw e;
+      status("Map export failed: " + e.getMessage());
+    }
   }
 
   private void saveDiscovery(String label, boolean offline) {

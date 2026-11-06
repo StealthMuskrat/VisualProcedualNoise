@@ -456,6 +456,20 @@ public final class GpuChecks {
       check(
           vertical.getSample(32, 0, 0) > vertical.getSample(32, 63, 0),
           "map image origin is top-left with artistic Y upward");
+      s.expression = "1e10 * 1e10 * p.x";
+      r.configure(s);
+      var steep =
+          r.captureMap(
+              s, 0, TextureMap.Kind.NORMAL, size, TextureMap.Kind.NORMAL.initialRange, 0, 0, false);
+      var steepValues = ByteBuffer.wrap(steep.floats()).order(ByteOrder.nativeOrder());
+      int center = (32 * 96 + 32) * 16;
+      check(
+          Math.abs(steepValues.getFloat(center) + 1) < 1e-6
+              && Math.abs(steepValues.getFloat(center + 4)) < 1e-6
+              && Float.isFinite(steepValues.getFloat(center + 8)),
+          "extremely steep finite fields retain valid unit normals");
+      s.expression = "p.y";
+      r.configure(s);
       s.set("role", 1);
       var surface =
           r.captureMap(

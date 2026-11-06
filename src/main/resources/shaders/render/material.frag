@@ -55,9 +55,16 @@ void main() {
     if(recipe==10)f+=.2*sin(p.x*6.+motionPhase.x)*sin(p.y*7.-motionPhase.y);
     f=mix(f,cell-.5,role);
     if(recipe==1) { float phase=f*32.; float aa=max(fwidth(phase),.01); f=.8-smoothstep(.08,.08+aa,abs(sin(phase))); }
+    if(mapOutput!=0&&(isnan(f)||isinf(f))){color=vec4(f);return;}
     if(mapOutput==1){color=vec4(f*height,0.,0.,1.);return;}
-    if(mapOutput==2){vec2 slope=vec2(dFdx(f),dFdy(f))*viewport.y/(2.*scale);color=vec4(normalize(vec3(-slope*height,1.)),1.);return;}
-    if(mapOutput==3){float edge=max(fwidth(f),1e-6);color=vec4(smoothstep(-edge,edge,f),0.,0.,1.);return;}
+    if(mapOutput==2){
+        vec2 slope=vec2(dFdx(f),dFdy(f))*viewport.y/(2.*scale);
+        vec3 n=vec3(-slope*height,1.);
+        if(any(isnan(n))||any(isinf(n))){color=vec4(n,1.);return;}
+        n/=max(max(abs(n.x),abs(n.y)),1.);
+        color=vec4(normalize(n),1.);return;
+    }
+    if(mapOutput==3){float edge=max(fwidth(f),1e-6);if(isnan(edge)||isinf(edge)){color=vec4(edge);return;}color=vec4(smoothstep(-edge,edge,f),0.,0.,1.);return;}
     vec2 grad=vec2(dFdx(f),dFdy(f))*viewport.y*.35;
 #if recipe == 15
     grad=customGradient(p)*scale;
@@ -85,6 +92,7 @@ void main() {
         linear=mix(linear,old,historyMix);
     }
     if(feedbackEnabled!=0)linear=mix(linear,texture(feedbackTexture,uv).rgb,.65);
+    if(mapOutput>=4&&(any(isnan(linear))||any(isinf(linear)))){color=vec4(linear,1.);return;}
     if(mapOutput==4){color=vec4(max(linear,0.),1.);return;}
     if(mapOutput==5){color=vec4(max(linear-.65,0.),1.);return;}
     if(debugView==2)linear=vec3(cellular(p).z);

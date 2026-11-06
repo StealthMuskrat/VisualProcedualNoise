@@ -227,6 +227,25 @@ public final class ControlPanel implements AutoCloseable {
     });
     files.add(captureSized);
     files.add(new JLabel("Chosen-size stills render at full quality without advancing time."));
+    files.add(
+        new TextureMapPanel(
+            choice -> {
+              var size =
+                  new dev.visualengine.export.CaptureSize(
+                      (int) captureWidth.getValue(), (int) captureHeight.getValue());
+              JFileChooser chooser = new JFileChooser(data.toFile());
+              chooser.setSelectedFile(data.resolve(choice.kind().id() + ".png").toFile());
+              if (chooser.showSaveDialog(frame) == JFileChooser.APPROVE_OPTION)
+                submit.accept(
+                    new Command(
+                        "exportMap",
+                        new Command.MapExport(
+                            chooser.getSelectedFile().toPath(),
+                            choice.kind(),
+                            size,
+                            choice.range())));
+            },
+            this::showStatus));
     button(files, "Bookmark discovery (configuration and artwork)", "bookmark");
     button(files, "Freeze A/B reference (left frozen, right live)", "freeze");
     button(files, "Clear A/B reference", "clearReference");

@@ -137,6 +137,32 @@ public final class TextureMap {
 
   public record Encoded(BufferedImage image, long clippedSamples) {}
 
+  public record Frame(
+      Settings target,
+      Settings resolved,
+      long tick,
+      String device,
+      String signature,
+      double pointerX,
+      double pointerY,
+      boolean brush) {
+    public Frame {
+      if (target == null
+          || resolved == null
+          || !Double.isFinite(pointerX)
+          || !Double.isFinite(pointerY)
+          || Math.abs(pointerX) > 1e6
+          || Math.abs(pointerY) > 1e6)
+        throw new IllegalArgumentException("Invalid texture-map frame context");
+      target = target.copy();
+      resolved = resolved.copy();
+      target.validate();
+      resolved.validate();
+      target.motionClock = resolved.motionClock;
+      target.colorClock = resolved.colorClock;
+    }
+  }
+
   private TextureMap() {}
 
   public static Encoded encode(Data data) {
@@ -213,8 +239,29 @@ public final class TextureMap {
   public static long write(
       Path path, Data data, Settings settings, long tick, String device, String signature)
       throws IOException {
+    return write(path, data, new Frame(settings, settings, tick, device, signature, 0, 0, false));
+  }
+
+  public static long write(Path path, Data data, Frame frame) throws IOException {
     Encoded encoded = encode(data);
-    JsonObject doc = document(data, settings, tick, device, signature, encoded.clippedSamples());
+    JsonObject doc =
+        document(
+            data,
+            frame.target(),
+            frame.tick(),
+            frame.device(),
+            frame.signature(),
+            encoded.clippedSamples());
+    doc.add("mapResolvedParameters", PresetIO.JSON.toJsonTree(frame.resolved().values));
+    doc.add("mapResolvedEffectValues", PresetIO.JSON.toJsonTree(frame.resolved().effectValues));
+    doc.add(
+        "mapPointer",
+        PresetIO.JSON.toJsonTree(
+            new double[] {frame.pointerX(), frame.pointerY(), frame.brush() ? 1 : 0}));
+    doc.addProperty(
+        "mapPointerSpace", "centered pre-scale artistic domain; x aspect-correct, y upward");
+    doc.addProperty(
+        "mapDomain", "scaled base artistic domain: 2*scale field units across image height");
     String text = PresetIO.JSON.toJson(doc);
     if (text.getBytes(StandardCharsets.UTF_8).length > 1_048_576)
       throw new IOException("Map metadata exceeds 1 MiB");

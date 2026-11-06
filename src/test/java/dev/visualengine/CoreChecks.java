@@ -195,6 +195,7 @@ public final class CoreChecks {
     count += DiscoveryChecks.run();
     count += DiscoveryUiChecks.run();
     count += TextureMapChecks.run();
+    count += TextureMapUiChecks.run();
     System.out.println("Core checks passed: " + count);
   }
 

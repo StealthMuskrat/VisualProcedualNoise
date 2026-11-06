@@ -20,6 +20,12 @@ public record Command(String type, Object value) {
 
   public record Still(java.nio.file.Path path, dev.visualengine.export.CaptureSize size) {}
 
+  public record MapExport(
+      java.nio.file.Path path,
+      dev.visualengine.export.TextureMap.Kind kind,
+      dev.visualengine.export.CaptureSize size,
+      dev.visualengine.export.TextureMap.Range range) {}
+
   public record Edit(String id, double value) {}
 
   public record EffectEdit(String id, java.util.List<Double> value) {
