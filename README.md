@@ -18,6 +18,10 @@ Use `--recipe fluid-palette --grid 257` to exercise pigment transport on an odd-
 
 Pigments use midpoint semi-Lagrangian transport, periodic boundaries, a small artistic diffusion term, exponential decay, then injection in domain units. This method is diffusive and does not conserve mass. Feedback stores bounded pre-tonemapped linear color on fixed ticks, with distinct previous and next images. Display encoding occurs once in the final pass. Quality settings never adapt the simulation automatically.
 
+Reaction diffusion uses a direct nine-point Gray–Scott stencil: center −1, axial 0.2, diagonal 0.05, diffusion A=1 and B=0.5 in artistic grid units. Each 120 Hz tick executes four explicit steps of 0.25 grid-time units. Feed and kill controls have bounded ranges; changing the grid resets the pattern and changes its spatial detail. This is an artistic model, not a biological simulation.
+
+Particles use aligned 32-byte SSBO records, midpoint flow integration, deterministic ID/seed/respawn hashing, and a separate fixed-tick fading trail pair. Local clocks use R32F state. History captures every eight simulation ticks into a bounded array at up to 256×256 per layer; invalid layers are excluded and neighboring valid slices are interpolated. A history image is visual memory, not reversible physical state.
+
 For editable engine resources: `gradlew.bat run --args="--shaders src/main/resources/shaders"`. These resources are for engine development; user effect authoring uses templates and bounded formulas.
 
 Dependencies are pinned to LWJGL 3.4.3 and Gradle 9.1.0. Gradle's [9.1 release notes](https://docs.gradle.org/9.1.0/release-notes.html) confirm Java 25 support. See [LWJGL releases](https://github.com/LWJGL/lwjgl3/releases) and [FFM documentation](https://github.com/LWJGL/lwjgl3/blob/master/doc/FFM.md) for its Java 25 backend. Classpath launches explicitly enable native access.

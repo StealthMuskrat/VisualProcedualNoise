@@ -1,0 +1,26 @@
+#version 430 core
+layout(local_size_x=256) in;
+struct Particle {vec4 state;uvec4 identity;};
+layout(std430,binding=0) buffer Particles {Particle particles[];};
+layout(binding=0) uniform sampler2D flowTexture;
+uniform int count,initialize;
+uniform uint seed;
+uniform float dt,aspect;
+uint hash(uint n){n^=n>>16;n*=0x7feb352du;n^=n>>15;n*=0x846ca68bu;return n^(n>>16);}
+float random(uint n){return float(hash(n)&0xffffffu)/16777216.;}
+void main() {
+    uint id=gl_GlobalInvocationID.x;if(id>=uint(count))return;
+    Particle p;
+    if(initialize!=0){p.state=vec4(0);p.identity=uvec4(0);}else p=particles[id];
+    if(initialize!=0||p.state.z>=p.state.w) {
+        uint counter=p.identity.x;uint h=hash(id^seed^hash(counter));
+        p.state=vec4((random(h)*2.-1.)*aspect,random(h+1u)*2.-1.,0.,2.+random(h+2u)*8.);
+        p.identity=uvec4(counter+1u,h,0,0);
+    }
+    vec2 units=vec2(2.*aspect,2.);
+    vec2 uv=p.state.xy/units+.5;
+    vec2 velocity=texture(flowTexture,uv).xy;
+    velocity=texture(flowTexture,uv+.5*dt*velocity/units).xy;
+    p.state.xy=mod(p.state.xy+velocity*dt+vec2(aspect,1.),units)-vec2(aspect,1.);
+    p.state.z+=dt;particles[id]=p;
+}

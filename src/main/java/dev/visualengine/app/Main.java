@@ -6,11 +6,14 @@ import java.io.*;
 public final class Main {
     public static void main(String[] args) {
         Path data=Path.of(System.getenv().getOrDefault("LOCALAPPDATA",System.getProperty("user.home")),"ProceduralVisualEngine");
+        PrintStream console=System.err;
         try {
             Files.createDirectories(data);
             try(var log=new PrintStream(Files.newOutputStream(data.resolve("engine.log")),true,java.nio.charset.StandardCharsets.UTF_8)) {
                 System.setErr(log);
                 try(Engine engine=new Engine(Options.parse(args),data)) {engine.run();}
+                catch(Exception e){e.printStackTrace(log);throw e;}
+                finally{System.setErr(console);}
             }
         } catch(Exception e) {
             e.printStackTrace();

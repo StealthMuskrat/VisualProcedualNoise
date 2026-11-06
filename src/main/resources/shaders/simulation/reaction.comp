@@ -1,0 +1,31 @@
+#version 430 core
+layout(local_size_x=8,local_size_y=8) in;
+layout(binding=0) uniform sampler2D previousState;
+layout(rg32f,binding=0) writeonly uniform image2D nextState;
+uniform uint seed;
+uniform float dt,feed,kill,aspect;
+uniform int initialize,recipe;
+uniform vec4 pointer;
+#include "../common/noise.glsl"
+vec2 sampleAt(ivec2 pixel,ivec2 extent) {return texelFetch(previousState,(pixel%extent+extent)%extent,0).xy;}
+void main() {
+    ivec2 pixel=ivec2(gl_GlobalInvocationID.xy),extent=imageSize(nextState);
+    if(any(greaterThanEqual(pixel,extent)))return;
+    vec2 p=((vec2(pixel)+.5)/vec2(extent)*2.-1.)*vec2(aspect,1.);
+    if(initialize!=0) {
+        vec2 q=fract((p+2.)*3.)-.5;
+        float b=smoothstep(.14,.07,length(q))*.65;
+        imageStore(nextState,pixel,vec4(1.-b*.5,b,0,0));return;
+    }
+    vec2 c=sampleAt(pixel,extent),lap=-c;
+    for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++)if(x!=0||y!=0)lap+=sampleAt(pixel+ivec2(x,y),extent)*((x==0||y==0)?.2:.05);
+    float localFeed=feed;
+    if(recipe==6)localFeed=clamp(feed+noise3d(vec3(p*2.,.1))*.006,.01,.08);
+    if(recipe==10)localFeed=clamp(feed+.004*sin(p.x*5.)*sin(p.y*7.),.01,.08);
+    float reaction=c.x*c.y*c.y;
+    vec2 next=c+dt*(vec2(1.,.5)*lap+vec2(-reaction+localFeed*(1.-c.x),reaction-(kill+localFeed)*c.y));
+    float inject=pointer.w*exp(-dot(p-pointer.xy,p-pointer.xy)/(pointer.z*pointer.z));
+    next+=vec2(-.2,.4)*inject*dt;
+    // Concentration clamp is an artistic safeguard; tests inspect the stable exposed range.
+    imageStore(nextState,pixel,vec4(clamp(next,0.,1.),0,0));
+}
