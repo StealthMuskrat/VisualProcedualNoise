@@ -7,12 +7,14 @@ Recorded November 6 2026. Source implementation includes the renderer, sixteen r
 | Check | Result |
 | --- | --- |
 | Java 25 compilation and distribution assembly | Passed with Temurin 25.0.5+8 |
-| JVM contracts | 276 passed: parsing, types, bounds, graph cycles and pruning, seeds, preset migrations, modulation, clocks, replay, custom controls, hashes, typed groups, checkpoint archives, quality profiles, still metadata, discovery integrity/branching/gallery, 16-bit map encoding/metadata/UI, morph compatibility/interpolation/phases/command ordering/UI, directional formulas/effects/hashes/UI and memory limits |
-| OpenGL contracts | 122 passed on Mesa llvmpipe, OpenGL 4.5 core, Mesa 25.2.8, LLVM 20.1.2 |
+| JVM contracts | 305 passed: parsing, types, bounds, graph cycles and pruning, seeds, preset migrations, modulation, clocks, replay, custom controls, hashes, typed groups, checkpoint archives, quality profiles, still metadata, discovery integrity/branching/gallery, 16-bit map encoding/metadata/UI, morph compatibility/interpolation/phases/command ordering/UI, directional formulas/effects/hashes/UI, seam/loop metrics/context/UI and memory limits |
+| OpenGL contracts | 131 passed on Mesa llvmpipe, OpenGL 4.5 core, Mesa 25.2.8, LLVM 20.1.2 |
 | Authoring behavior | Custom values change the image without relinking; encapsulating seeded graphs preserves their rendered output; typed group expressions link and render |
 | Recipe coverage | All sixteen recipes compiled and rendered; generated gallery includes PNGs and complete sidecars |
 | Directional fields | 4096 raw probe and 6144 material-height samples matched an independent double-precision reference within 0.0002; orientation response, half-turn symmetry, seeded repeatability, boundary continuity, clamps, nonfinite inputs and finite normal export passed |
 | Directional effects | Fibers/weave rendered distinct images; numeric controls retained the linked program; formula/graph field agreement and analytic-loop endpoints passed. Installed manifests preserved image/state through map capture and exact replay/checkpoint continuation through a smoothed bandwidth edit |
+| Seam and loop inspection | Encoded-channel statistics, edge axes and neighboring-step counts, endpoint eligibility, resolution limits, lossless metadata and actual UI actions passed. GPU sampling excluded overlays and preserved framebuffer, state bytes, reference, clocks and allocation; matching analytic endpoints retained visible animation between them |
+| Installed inspection workflow | Inspection preserved exact live image, GPU state, clocks, replay cursor, unfinished smoothing and pointer input. Spatial reports avoided future-state inference; analytic endpoints matched within one display level. Oversized requests and failed atomic publication preserved existing destinations |
 | Reset and pause | Repeated reset at the same seed/tick reproduced the image; repeated rendering without ticks preserved it |
 | Pigment transport | Constant-field preservation and positive-flow impulse direction passed on a 65×65 grid |
 | Reaction diffusion | Concentrations remained finite and bounded over 256 ticks at three exposed coefficient combinations; initialization responds to root seed |
@@ -56,6 +58,8 @@ Before public release, run the specification's matrix on physical Windows machin
 The installed Linux script launcher was exercised with replay exports. A native Linux app image was built, but its launcher could not be validated in this sandbox because the process filesystem is unavailable. Linux app images are outside the Windows distribution target.
 
 ## Scope of this release
+
+Version 0.9 adds [rendered seam and analytic-loop inspection](INSPECTION.md), including numeric reports, independent-resolution sampling, target/resolved context and a repeated-image preview. It measures encoded pixel samples without automatically certifying seamlessness or predicting future persistent state.
 
 Version 0.8 adds [directional Gabor-style fields and reusable fibers/weave effects](DIRECTIONAL_NOISE.md), including bounded evaluation, typed formula/graph support, generated controls, hashed manifests and export/replay/checkpoint verification. This is a fixed-impulse artistic variant without research spectral-parity or anisotropic-filtering claims.
 

@@ -42,6 +42,8 @@ Version 0.7 adds compatible preset morphing. Capture or load two endpoints in th
 
 Version 0.8 adds directional Gabor-style noise, a formula template, and editable fibers/weave effects in the Authoring tab. Try `--effect examples/effects/gabor-fibers.json` or `--effect examples/effects/gabor-weave.json`. See [controls, bounded evaluation, research reference and limits](docs/DIRECTIONAL_NOISE.md).
 
+Version 0.9 adds rendered seam and analytic-loop inspection in the Inspect tab and CLI: `--inspect inspection.json --inspect-size 512x512` after a finite run. Reports distinguish target controls from resolved values and preserve the live scene, clocks and replay. See [measurements, interpretation and examples](docs/INSPECTION.md).
+
 Discovery bookmarks save artwork and its complete restarting configuration under the user-data directory. A/B comparison shows a frozen or saved finished frame on the left and the live scene on the right; this does not run two independent simulations. GPU storage is estimated before quality changes and capped at 512 MiB.
 
 ## Verification

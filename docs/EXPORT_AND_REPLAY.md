@@ -38,6 +38,8 @@ Analytic spatial tile mode maps both UV axes through periodic sine/cosine coordi
 
 Analytic loop seconds synchronizes geometric and color phases to integer cycles over the chosen period. Formula loops use `phase`; formulas depending on unbounded `t` are rejected. Stateful patterns are not labeled seamless. Render one period at a matching output rate to inspect the result.
 
+The Inspect tab and `--inspect FILE.json --inspect-size WIDTHxHEIGHT` measure repeated-image edges and configured analytic endpoints. They hold resolved controls fixed and preserve state, smoothing and replay. Reports explain adjacent pixel-center sampling and unfinished control changes; they do not certify seamlessness. See [inspection contracts and the bundled loop example](INSPECTION.md).
+
 ## Windows packaging
 
 On Windows x64 with JDK 25:
