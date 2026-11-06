@@ -36,6 +36,8 @@ Version 0.4 adds Draft, Balanced and Detailed quality presets with visible setti
 
 Version 0.5 adds a discovery gallery with thumbnails, search, favorites, labels, composition locks and palette/motion branching. Saved artwork can become an A/B reference. Use the Files bookmark action or `--bookmark LABEL` after a finite run; `--discovery ID` reopens its configuration from tick 0. See [discovery history](docs/DISCOVERIES.md).
 
+Version 0.6 adds height, normal, mask, linear-color and emission texture maps as 16-bit linear-data PNGs with embedded metadata. Export from the Files tab or use `--map height --map-output height.png --map-size 1024x1024 --map-range -2:2`. See [map units, encoding and limits](docs/TEXTURE_MAPS.md).
+
 Discovery bookmarks save artwork and its complete restarting configuration under the user-data directory. A/B comparison shows a frozen or saved finished frame on the left and the live scene on the right; this does not run two independent simulations. GPU storage is estimated before quality changes and capped at 512 MiB.
 
 ## Verification

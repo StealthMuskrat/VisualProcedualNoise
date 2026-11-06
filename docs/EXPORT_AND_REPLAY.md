@@ -6,6 +6,8 @@ Use `--capture artwork.png --capture-size 2560x1600` for an independent full-res
 
 [Discovery bookmarks](DISCOVERIES.md) add a thumbnail gallery, annotations and branching around captured artwork and restarting configurations. They do not replace state checkpoints.
 
+[Texture-map exports](TEXTURE_MAPS.md) store height, normal, mask, linear color or emission as 16-bit data, with explicit decoding ranges and embedded capture metadata. Their data path uses full resolution and the current state, without display finishing or advancing time.
+
 ## Replay
 
 Start replay recording resets the scene and begins a take. Pointer strokes and resolved control changes are assigned to simulation ticks in order. Stop recording freezes the take. Save recorded replay writes a portable JSON recording. Resetting during a recording begins a new take. Changing viewport aspect stops recording, since domain coordinates would otherwise change meaning. Replay at the recorded aspect ratio.
