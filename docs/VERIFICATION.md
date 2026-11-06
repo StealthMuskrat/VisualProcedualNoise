@@ -7,8 +7,8 @@ Recorded November 6 2026. Source implementation includes the renderer, sixteen r
 | Check | Result |
 | --- | --- |
 | Java 25 compilation and distribution assembly | Passed with Temurin 25.0.5+8 |
-| JVM contracts | 79 passed: parsing, types, bounds, graph cycles and pruning, seeds, preset migrations, modulation, clocks, replay, custom controls, hashes, typed groups, checkpoint archives and memory limits |
-| OpenGL contracts | 65 passed on Mesa llvmpipe, OpenGL 4.5 core, Mesa 25.2.8, LLVM 20.1.2 |
+| JVM contracts | 104 passed: parsing, types, bounds, graph cycles and pruning, seeds, preset migrations, modulation, clocks, replay, custom controls, hashes, typed groups, checkpoint archives, quality profiles, still metadata and memory limits |
+| OpenGL contracts | 75 passed on Mesa llvmpipe, OpenGL 4.5 core, Mesa 25.2.8, LLVM 20.1.2 |
 | Authoring behavior | Custom values change the image without relinking; encapsulating seeded graphs preserves their rendered output; typed group expressions link and render |
 | Recipe coverage | All sixteen recipes compiled and rendered; generated gallery includes PNGs and complete sidecars |
 | Reset and pause | Repeated reset at the same seed/tick reproduced the image; repeated rendering without ticks preserved it |
@@ -20,6 +20,8 @@ Recorded November 6 2026. Source implementation includes the renderer, sixteen r
 | Replay export | Two independent eight-frame exports produced byte-identical PNG files |
 | Checkpoint continuation | Independent installed processes reproduced the saved tick-306 image and exact tick-360 image, clocks, replay cursor and every GPU resource from an uninterrupted run |
 | Checkpoint integrity | Corrupt, missing, unexpected, truncated and incompatible archive data rejected; failed save preserved its existing destination; failed staged GPU restore preserved the active scene |
+| Quality profiles | Resolved values round-trip, preserve creative controls and fit the declared memory budget; recorded quality cannot be silently overridden |
+| Independent stills | Offscreen output matches the 96×64 viewport exactly; the 640×400 native comparison differed by one 8-bit step in 10 of 256000 pixels (limit: one step in 0.1%); state stayed byte exact. Odd sizes, differing aspect, paused repeatability, A/B reference, live framebuffer preservation, temporary cleanup and pre-allocation budget rejection passed |
 | Sequence timing | 24 fps sequence used ticks 0, 5, 10 and 15 for its first four frames |
 | Installation contents | Gradle distribution contains engine resources, pinned natives, notices and licenses |
 
@@ -46,6 +48,6 @@ The installed Linux script launcher was exercised with replay exports. A native 
 
 ## Scope of this release
 
-Version 0.3 adds [full GPU checkpoints](CHECKPOINTS.md), including particle counters, history, time, smoothing, A/B reference and active replay continuation. Version 0.2 introduced Effect API 2: custom scalar/vector descriptors, resolved values, generated controls, definition hashes, embedded revision-pinned groups and typed expression ports. Graphs retain explicit reads of the engine's prior visual color, pigment and local-age resources. API 1 effects and older presets remain readable. Reaction and transport customization use the supported host-owned templates and bounded controls.
+Version 0.4 adds [named quality presets and independent still capture](QUALITY_AND_STILLS.md), including exact capture render-size metadata and state-preserving output. Version 0.3 introduced [full GPU checkpoints](CHECKPOINTS.md), including particle counters, history, time, smoothing, A/B reference and active replay continuation. Version 0.2 introduced Effect API 2: custom scalar/vector descriptors, resolved values, generated controls, definition hashes, embedded revision-pinned groups and typed expression ports. Graphs retain explicit reads of the engine's prior visual color, pigment and local-age resources. API 1 effects and older presets remain readable. Reaction and transport customization use the supported host-owned templates and bounded controls.
 
 Arbitrary simulation kernels, external package dependency resolution, signed installers, bundled video encoding, audio/MIDI/OSC, 3D rendering, wallpaper integration and optional driver-specific optimization experiments remain later extensions. The implementation does not claim those features are present.

@@ -35,7 +35,7 @@ Export the saved frame without advancing a tick:
 gradlew.bat run --args="--export restored --frames 1 --checkpoint study.vstate"
 ```
 
-`--checkpoint` cannot be combined with `--preset`, `--effect`, `--replay`, `--recipe`, `--seed`, `--grid` or `--expression`. `--size` can change output resolution at the same aspect ratio; interactive resume requires the current viewport to have that ratio. `--warmup` advances additional ticks from the loaded state. Offline stepping retains its normal fixed-tick behavior regardless of the saved interactive pause setting.
+`--checkpoint` cannot be combined with `--preset`, `--effect`, `--replay`, `--recipe`, `--seed`, `--grid`, `--quality` or `--expression`. `--size` can change output resolution at the same aspect ratio; interactive resume requires the current viewport to have that ratio. `--warmup` advances additional ticks from the loaded state. Offline stepping retains its normal fixed-tick behavior regardless of the saved interactive pause setting. `--capture-size` can render a separate still from the resumed state without resizing its live viewport.
 
 An embedded replay continues automatically. Live pointer input resumes from the current device after time advances. The first restored frame without ticks uses the saved pointer. Replays use their recorded pointer for both simulation and visible material interaction.
 

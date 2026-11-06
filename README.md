@@ -32,6 +32,8 @@ Version 0.2 adds custom scalar/vector effect controls and embedded reusable grou
 
 Version 0.3 adds full simulation checkpoints in the Files tab. Use `--save-checkpoint study.vstate` to save developed GPU state, clocks, smoothing, history, particle counters and an active replay cursor; use `--checkpoint study.vstate` to resume it. See [checkpoint compatibility, limits and examples](docs/CHECKPOINTS.md).
 
+Version 0.4 adds Draft, Balanced and Detailed quality presets with visible settings and memory estimates. Still captures can render at a chosen resolution without resizing the live window or advancing state: `--capture artwork.png --capture-size 2560x1600`. See [quality presets and still output](docs/QUALITY_AND_STILLS.md).
+
 Discovery bookmarks save artwork and its complete configuration under the user-data directory. A/B comparison shows a frozen finished frame on the left and the live scene on the right; this does not run two independent simulations. GPU storage is estimated before quality changes and capped at 512 MiB.
 
 ## Verification

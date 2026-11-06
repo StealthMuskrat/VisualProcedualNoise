@@ -2,6 +2,8 @@
 
 PNG captures are opaque SDR sRGB, with top-left image origin. Their JSON sidecars preserve the base controls, modulation, root seed, reference tick, phase clocks, quality, algorithm revision and device. Loading a configuration restarts state; a still and its metadata are not a GPU checkpoint.
 
+Use `--capture artwork.png --capture-size 2560x1600` for an independent full-resolution still at the current tick. The Files tab offers the same chosen-size capture. Live window dimensions, simulation resources and sequence timing stay intact. Sidecars identify the actual render size and whether the A/B reference is included. See [quality and still output](QUALITY_AND_STILLS.md) for bounds and behavior.
+
 ## Replay
 
 Start replay recording resets the scene and begins a take. Pointer strokes and resolved control changes are assigned to simulation ticks in order. Stop recording freezes the take. Save recorded replay writes a portable JSON recording. Resetting during a recording begins a new take. Changing viewport aspect stops recording, since domain coordinates would otherwise change meaning. Replay at the recorded aspect ratio.
