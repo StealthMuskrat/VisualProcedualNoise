@@ -153,6 +153,7 @@ public final class Formula {
             case "fbm" -> 320;
             case "noise3d" -> 64;
             case "cellular" -> 180;
+            case "gabor" -> 2048;
             default -> 2;
           };
     }
@@ -381,6 +382,12 @@ public final class Formula {
         arity(args, 1);
         require(args.getFirst(), Type.VEC2);
         type = Type.VEC3;
+      }
+      case "gabor" -> {
+        arity(args, 4);
+        require(args.getFirst(), Type.VEC2);
+        for (int i = 1; i < 4; i++) require(args.get(i), Type.FLOAT);
+        type = Type.FLOAT;
       }
       case "dot" -> {
         arity(args, 2);

@@ -198,6 +198,7 @@ public final class CoreChecks {
     count += TextureMapUiChecks.run();
     count += MorphChecks.run();
     count += MorphUiChecks.run();
+    count += GaborChecks.run();
     System.out.println("Core checks passed: " + count);
   }
 

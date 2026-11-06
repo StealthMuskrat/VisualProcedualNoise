@@ -20,6 +20,7 @@ layout(binding=5) uniform sampler2D chemicalTexture;
 layout(binding=6) uniform sampler2D ageTexture;
 layout(binding=7) uniform sampler2D trailTexture;
 #include "../common/noise.glsl"
+#include "../common/gabor.glsl"
 #include "../common/color.glsl"
 #include "../common/safe.glsl"
 uniform float frequency,drift,stripeRate;
