@@ -19,6 +19,7 @@ public final class ControlPanel implements AutoCloseable {
     private JComboBox<Settings.Recipe> recipes;
     private JComboBox<String> palette,debug;
     private AuthoringPanel authoring;
+    private ModulationPanel modulation;
     private boolean syncing;
     public ControlPanel(Consumer<Command> submit,Settings initial,Path data) {
         this.submit=submit; this.data=data;
@@ -57,15 +58,21 @@ public final class ControlPanel implements AutoCloseable {
         spinner(quality,"History layers (resets state)","historyLayers",s.historyLayers,0,32,1);
         spinner(quality,"Playback speed","speed",s.speed,0.,4.,.1);
         spinner(quality,"Display scale","displayScale",s.displayScale,.25,1.,.25);
+        spinner(quality,"Analytic loop seconds (0 disables)","loopSeconds",s.loopSeconds,0.,3600.,1.);
+        for(String[] f:new String[][]{{"Analytic spatial tile","tileMode"},{"Show 2×2 wrap preview","tilePreview"}}){JCheckBox box=new JCheckBox(f[0]);box.addActionListener(e->{if(!syncing)submit.accept(new Command(f[1],box.isSelected()));});flags.put(f[1],box);quality.add(box);}
         JPanel files=column();
         fileButton(files,"Save configuration preset","save","study.json",true);
         fileButton(files,"Load configuration preset (restart)","load","study.json",false);
         fileButton(files,"Capture artwork PNG","capture","artwork.png",true);
         fileButton(files,"Import reusable effect","importEffect","effect.json",false);
         fileButton(files,"Export reusable effect","exportEffect","effect.json",true);
+        button(files,"Start replay recording from reset","record");button(files,"Stop recording","stopRecord");
+        fileButton(files,"Save recorded replay","saveReplay","take.replay.json",true);
+        fileButton(files,"Play recorded replay","loadReplay","take.replay.json",false);
         files.add(new JLabel("Presets restart state. Captures record the reference tick."));
         JTabbedPane tabs=new JTabbedPane();tabs.addTab("Scene",new JScrollPane(scene));tabs.addTab("Controls",new JScrollPane(params));tabs.addTab("Quality",new JScrollPane(quality));tabs.addTab("Files",new JScrollPane(files));
         authoring=new AuthoringPanel(submit,s);tabs.addTab("Authoring",authoring);
+        modulation=new ModulationPanel(submit,s);tabs.addTab("Modulation",modulation);
         frame.add(tabs,BorderLayout.CENTER);frame.add(status,BorderLayout.SOUTH);frame.setSize(540,860);frame.setLocationByPlatform(true);syncNow(s);frame.setVisible(true);
     }
     private void spinner(JPanel p,String label,String id,Number initial,Comparable<?> min,Comparable<?> max,Number step) {
@@ -84,6 +91,8 @@ public final class ControlPanel implements AutoCloseable {
             flags.get("feedbackEnabled").setSelected(s.feedbackEnabled);flags.get("pigmentEnabled").setSelected(s.pigmentEnabled);
             flags.get("reactionEnabled").setSelected(s.reactionEnabled);flags.get("particlesEnabled").setSelected(s.particlesEnabled);
             if(authoring!=null)authoring.sync(s);
+            if(modulation!=null)modulation.sync(s);
+            flags.get("tileMode").setSelected(s.tileMode);flags.get("tilePreview").setSelected(s.tilePreview);
         } finally { syncing=false; }
     }
     public void sync(Settings s) { Settings copy=s.copy();SwingUtilities.invokeLater(()->syncNow(copy)); }

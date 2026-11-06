@@ -32,7 +32,7 @@ public final class EffectPackage {
     public static void resolveResources(Settings s) {
         if(s.recipe!=Settings.Recipe.CUSTOM)return;
         if(s.graphEnabled){var resources=GraphCompiler.compile(s.graph).resources();if(resources.contains("previousVisualColor"))s.feedbackEnabled=true;if(resources.contains("pigment"))s.pigmentEnabled=true;}
-        else if(Formula.compile(s.expression).root().type()!=Formula.Type.FLOAT)throw new IllegalArgumentException("Field expression must be scalar");
+        else {var compiled=Formula.compile(s.expression);if(compiled.root().type()!=Formula.Type.FLOAT)throw new IllegalArgumentException("Field expression must be scalar");if(s.loopSeconds>0&&compiled.dependencies().contains("t"))throw new IllegalArgumentException("Analytic loops require phase instead of unbounded formula time");}
     }
     public void save(Path path) throws IOException {validate();PresetIO.atomicWrite(path,PresetIO.JSON.toJson(this));}
 }

@@ -15,7 +15,7 @@ public final class Simulation implements AutoCloseable {
     private Program flowProgram,pigmentProgram,feedbackProgram,reactionProgram,ageProgram;
     private final ShaderSources sources;
     private double previousX,previousY;
-    private boolean chemicalInitialized;
+    private boolean chemicalInitialized,previousBrush;
     public Simulation(ShaderSources sources,Settings settings) {
         this.sources=sources;this.grid=settings.grid;
         Texture f=null;PingPong p=null,b=null,c=null,a=null;Particles pt=null;History h=null;
@@ -36,7 +36,7 @@ public final class Simulation implements AutoCloseable {
         }catch(RuntimeException e){for(var program:next)if(program!=null)program.close();throw e;}
         closePrograms();flowProgram=next[0];pigmentProgram=next[1];feedbackProgram=next[2];reactionProgram=next[3];ageProgram=next[4];
     }
-    public void reset(){flow.clear(0,0,0,0);pigment.clear(0,0,0,0);feedback.clear(0,0,0,0);chemicals.clear(1,0,0,0);age.clear(0,0,0,0);particles.reset();history.reset();chemicalInitialized=false;previousX=previousY=0;}
+    public void reset(){flow.clear(0,0,0,0);pigment.clear(0,0,0,0);feedback.clear(0,0,0,0);chemicals.clear(1,0,0,0);age.clear(0,0,0,0);particles.reset();history.reset();chemicalInitialized=false;previousBrush=false;previousX=previousY=0;}
     private void dispatch(){glDispatchCompute((grid+7)/8,(grid+7)/8,1);glMemoryBarrier(PassScheduler.barrierBits(java.util.EnumSet.of(PassScheduler.Access.SAMPLER,PassScheduler.Access.IMAGE)));}
     public void update(Settings s,double time,double aspect,double x,double y,boolean brush) {
         if(s.pigmentEnabled||s.feedbackEnabled||s.particlesEnabled||s.debug==3||s.recipe==Settings.Recipe.INTERNAL_WEATHER) {
@@ -44,7 +44,7 @@ public final class Simulation implements AutoCloseable {
         }
         if(s.pigmentEnabled) {
             pigmentProgram.use();Renderer.uniforms(pigmentProgram,s,time,grid,grid,x,y,brush);
-            pigmentProgram.f("dt",Playback.DT);pigmentProgram.f("aspect",aspect);pigmentProgram.v2("previousPointer",previousX,previousY);
+            pigmentProgram.f("dt",Playback.DT);pigmentProgram.f("aspect",aspect);pigmentProgram.v2("previousPointer",previousBrush?previousX:x,previousBrush?previousY:y);
             pigment.read().bind(0);flow.bind(1);pigment.write().image(0);dispatch();pigment.swap();
         }
         if(s.reactionEnabled) {
@@ -56,7 +56,7 @@ public final class Simulation implements AutoCloseable {
             age.read().bind(0);age.write().image(0);dispatch();age.swap();
         }
         if(s.particlesEnabled)particles.tick(s,flow,time,aspect);
-        previousX=x;previousY=y;
+        previousX=x;previousY=y;previousBrush=brush;
     }
     private void chemical(Settings s,double time,double aspect,double x,double y,boolean brush,boolean initialize) {
         reactionProgram.use();Renderer.uniforms(reactionProgram,s,time,grid,grid,x,y,brush);reactionProgram.f("aspect",aspect);

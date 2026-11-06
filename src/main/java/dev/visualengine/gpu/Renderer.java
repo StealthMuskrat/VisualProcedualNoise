@@ -91,8 +91,11 @@ public final class Renderer implements AutoCloseable {
     public long bytes(){return (scene==null?0:scene.bytes()+glow.bytes())+(simulation==null?0:simulation.bytes()+marks.bytes());}
     public static void uniforms(Program p,Settings s,double time,int w,int h,double x,double y,boolean brush) {
         p.v2("viewport",w,h);p.ui("seed",(int)(s.seed^(s.seed>>>32)));
-        p.v2("motionPhase",Playback.phase(time,s.get("motion")),Playback.phase(time,s.get("motion")*.37));
-        p.f("colorPhase",Playback.phase(time,s.get("colorRate")));p.f("time",time);
+        double a=s.loopSeconds>0?time*Math.PI*2/s.loopSeconds:s.motionClock;
+        double b=s.loopSeconds>0?a*2:s.motionClock*.37;
+        p.v2("motionPhase",Math.IEEEremainder(a,Math.PI*2),Math.IEEEremainder(b,Math.PI*2));
+        p.f("colorPhase",Math.IEEEremainder(s.loopSeconds>0?a:s.colorClock,Math.PI*2));p.f("time",time);
+        p.i("tileMode",s.tileMode?1:0);p.i("tilePreview",s.tilePreview?1:0);
         p.i("recipe",s.recipe.ordinal());p.i("paletteIndex",s.palette);p.i("debugView",s.debug);
         p.v4("pointer",x,y,s.get("radius"),brush?1:0);s.values.forEach(p::f);
     }

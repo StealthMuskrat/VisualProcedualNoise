@@ -34,7 +34,7 @@ public final class Particles implements AutoCloseable {
         update.ui("seed",(int)(s.seed^(s.seed>>>32)));flow.bind(0);glBindBufferBase(GL_SHADER_STORAGE_BUFFER,0,buffer);
         glDispatchCompute((count+255)/256,1,1);glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);initialize=false;
         trails.write().target();fade.use();fade.f("dt",Playback.DT);trails.read().bind(0);glBindVertexArray(vao);glDrawArrays(GL_TRIANGLES,0,3);
-        draw.use();draw.f("aspect",aspect);draw.f("colorPhase",Playback.phase(time,s.get("colorRate")));draw.i("paletteIndex",s.palette);
+        draw.use();draw.f("aspect",aspect);draw.f("colorPhase",Math.IEEEremainder(s.colorClock,Math.PI*2));draw.i("paletteIndex",s.palette);
         glEnable(GL_PROGRAM_POINT_SIZE);glEnable(GL_BLEND);glBlendFunc(GL_ONE,GL_ONE);
         glDrawArrays(GL_POINTS,0,count);glDisable(GL_BLEND);trails.swap();
     }

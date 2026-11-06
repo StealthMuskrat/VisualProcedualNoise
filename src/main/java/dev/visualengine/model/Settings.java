@@ -32,6 +32,7 @@ public final class Settings {
         ,new Parameter("frequency", "Formula frequency", .1, 20, 2, "Authoring")
         ,new Parameter("drift", "Formula drift", 0, 2, .2, "Authoring")
         ,new Parameter("stripeRate", "Formula stripe rate", .1, 30, 4, "Authoring")
+        ,new Parameter("agitation", "Agitation macro", 0, 1, .5, "Authoring")
     );
     public enum Recipe { LIQUID_OPAL, LIVING_CONTOURS, COSMIC_SILK, ALIEN_ECOSYSTEM, KALEIDOSCOPE,
         TEMPORAL_PAINTING, INTERNAL_WEATHER, PATTERNS_WITHIN_PATTERNS, TIME_EXCAVATION,
@@ -41,6 +42,10 @@ public final class Settings {
     public Recipe recipe = Recipe.LIQUID_OPAL;
     public int palette = 0, debug = 0, grid = 256, particles = 16384, historyLayers = 8;
     public double speed = 1, displayScale = 1;
+    public double loopSeconds;
+    public boolean tileMode,tilePreview;
+    public transient double motionClock,colorClock;
+    public List<dev.visualengine.time.Modulation> modulations=new ArrayList<>();
     public boolean paused, feedbackEnabled, pigmentEnabled, reactionEnabled, particlesEnabled;
     public boolean graphEnabled;
     public dev.visualengine.authoring.EffectGraph graph=new dev.visualengine.authoring.EffectGraph();
@@ -61,6 +66,8 @@ public final class Settings {
         s.paused=paused; s.feedbackEnabled=feedbackEnabled; s.pigmentEnabled=pigmentEnabled;
         s.reactionEnabled=reactionEnabled; s.particlesEnabled=particlesEnabled; s.expression=expression;
         s.graphEnabled=graphEnabled;s.graph=graph==null?null:graph.copy();
+        s.loopSeconds=loopSeconds;s.tileMode=tileMode;s.tilePreview=tilePreview;s.motionClock=motionClock;s.colorClock=colorClock;
+        s.modulations=modulations.stream().map(dev.visualengine.time.Modulation::copy).collect(java.util.stream.Collectors.toCollection(ArrayList::new));
         s.values.putAll(values); s.locks.addAll(locks); return s;
     }
     public void validate() {
@@ -69,5 +76,9 @@ public final class Settings {
                 || historyLayers<0 || historyLayers>32 || !Double.isFinite(speed) || speed<0 || speed>4
                 || !Double.isFinite(displayScale) || displayScale<.25 || displayScale>1)
             throw new IllegalArgumentException("Invalid quality, palette, time or diagnostic settings");
+        if(modulations==null||modulations.size()>32)throw new IllegalArgumentException("At most 32 modulation mappings are allowed");modulations.forEach(dev.visualengine.time.Modulation::validate);
+        if(!Double.isFinite(loopSeconds)||loopSeconds<0||loopSeconds>3600||loopSeconds>0&&loopSeconds<1)throw new IllegalArgumentException("Loop period must be zero or 1..3600 seconds");
+        if((tileMode||loopSeconds>0)&&(feedbackEnabled||pigmentEnabled||reactionEnabled||particlesEnabled||recipe==Recipe.LOCAL_CLOCKS||recipe==Recipe.TIME_EXCAVATION||recipe==Recipe.TEMPORAL_PAINTING||graphEnabled||!modulations.isEmpty()))
+            throw new IllegalArgumentException("Tile and analytic loop modes require an analytic scene without state, graph resources or modulation");
     }
 }

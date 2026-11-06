@@ -13,13 +13,15 @@ public final class Window implements AutoCloseable {
     public int width, height;
     public Window(int w, int h, boolean headless) {
         error=GLFWErrorCallback.createPrint(System.err); error.set();
-        if(headless) glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_NULL);
+        boolean nullEgl=headless&&System.getProperty("os.name").toLowerCase(java.util.Locale.ROOT).contains("linux");
+        if(nullEgl) glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_NULL);
         if(!glfwInit()) throw new IllegalStateException("GLFW initialization failed. Install a current graphics driver.");
         glfwDefaultWindowHints();
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR,4); glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR,3);
         glfwWindowHint(GLFW_OPENGL_PROFILE,GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT,GLFW_TRUE);
-        if(headless) { glfwWindowHint(GLFW_CONTEXT_CREATION_API,GLFW_EGL_CONTEXT_API); glfwWindowHint(GLFW_VISIBLE,GLFW_FALSE); }
+        if(nullEgl)glfwWindowHint(GLFW_CONTEXT_CREATION_API,GLFW_EGL_CONTEXT_API);
+        if(headless)glfwWindowHint(GLFW_VISIBLE,GLFW_FALSE);
         handle=glfwCreateWindow(w,h,"Procedural Visual Engine",NULL,NULL);
         if(handle==NULL) { glfwTerminate(); error.free(); throw new IllegalStateException("OpenGL 4.3 core is required. GLFW could not create a context."); }
         glfwMakeContextCurrent(handle);

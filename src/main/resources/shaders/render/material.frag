@@ -7,6 +7,7 @@ uniform float scale,warp,detail,height,exposure,colorPhase,time,role;
 // Recipe is specialized by the host; numeric controls remain uniforms.
 #define recipe 0
 uniform int paletteIndex,debugView,feedbackEnabled,pigmentEnabled;
+uniform int tileMode,tilePreview;
 layout(binding=1) uniform sampler2D flowTexture;
 layout(binding=2) uniform sampler2D pigmentTexture;
 layout(binding=3) uniform sampler2D feedbackTexture;
@@ -36,6 +37,7 @@ float field(vec2 p) {
 }
 void main() {
     vec2 p=(uv*2.-1.)*vec2(viewport.x/viewport.y,1.);
+    if(tileMode!=0){vec2 u=tilePreview!=0?fract(uv*2.):uv;vec2 a=u*6.28318530718;p=vec2(sin(a.x)+cos(a.y),cos(a.x)+sin(a.y));}
     p+=pointer.w*.08*exp(-dot(p-pointer.xy,p-pointer.xy)/(pointer.z*pointer.z))*vec2(sin(motionPhase.x),cos(motionPhase.x));
     p*=scale;
     if(recipe==4) { float a=atan(p.y,p.x),r=length(p); a=abs(mod(a,1.04719755)-.52359878); p=r*vec2(cos(a),sin(a)); }

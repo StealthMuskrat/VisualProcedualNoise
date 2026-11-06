@@ -5,6 +5,16 @@ import java.io.*;
 
 public final class Main {
     public static void main(String[] args) {
+        if(java.util.Arrays.asList(args).contains("--help")) {
+            System.out.println("Procedural Visual Engine 0.1.0\nJava 25 / OpenGL 4.3\n"
+                +"--preset file.json --recipe NAME --seed INTEGER --grid 32..1024\n"
+                +"--expression FORMULA --shaders DIRECTORY\n"
+                +"--headless --frames N --size WIDTHxHEIGHT --capture artwork.png\n"
+                +"--export DIRECTORY --frames N --fps 24|30|60|120 --warmup TICKS\n"
+                +"--replay take.replay.json --list-recipes\n"
+                +"Interactive: Space pause, period step, R reset, F5 reload, F11 fullscreen, Tab controls, Escape exit");return;
+        }
+        if(java.util.Arrays.asList(args).contains("--list-recipes")){for(var recipe:dev.visualengine.model.Settings.Recipe.values())System.out.println(recipe.name().toLowerCase().replace('_','-'));return;}
         Path data=Path.of(System.getenv().getOrDefault("LOCALAPPDATA",System.getProperty("user.home")),"ProceduralVisualEngine");
         PrintStream console=System.err;
         try {

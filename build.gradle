@@ -35,3 +35,22 @@ tasks.register('coreCheck', JavaExec) {
     mainClass = 'dev.visualengine.CoreChecks'
 }
 tasks.named('check') { dependsOn tasks.named('coreCheck') }
+tasks.named('processResources') { from('licenses') { into 'META-INF/licenses' } }
+distributions {
+    main { contents { from('THIRD_PARTY_NOTICES.md'); from('licenses') { into 'licenses' }; from('docs') { into 'docs' } } }
+}
+tasks.register('packageWindows', Exec) {
+    dependsOn installDist
+    doFirst {
+        if (!System.getProperty('os.name').toLowerCase().contains('win')) throw new GradleException('Windows app images must be built on Windows with JDK 25.')
+        if (nativePlatform != 'natives-windows') throw new GradleException('Windows x64 packaging requires -PnativePlatform=natives-windows')
+        def jdk = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }.get().metadata.installationPath.asFile
+        delete layout.buildDirectory.dir('package/ProceduralVisualEngine')
+        commandLine new File(jdk, 'bin/jpackage.exe'), '--type', 'app-image', '--name', 'ProceduralVisualEngine',
+            '--app-version', project.version.toString(), '--dest', layout.buildDirectory.dir('package').get().asFile,
+            '--input', layout.buildDirectory.dir('install/procedural-visual-engine/lib').get().asFile,
+            '--main-jar', "procedural-visual-engine-${project.version}.jar", '--main-class', application.mainClass.get(),
+            '--add-modules', 'java.desktop,java.logging,jdk.unsupported', '--java-options', '--enable-native-access=ALL-UNNAMED',
+            '--app-content', 'licenses', '--app-content', 'THIRD_PARTY_NOTICES.md'
+    }
+}
