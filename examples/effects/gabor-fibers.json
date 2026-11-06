@@ -1,0 +1,127 @@
+{
+  "effectApiVersion": 2,
+  "controls": [
+    {
+      "id": "orientation",
+      "label": "Carrier orientation",
+      "type": "FLOAT",
+      "units": "radians",
+      "initial": [
+        0.65
+      ],
+      "minimum": -3.141592653589793,
+      "maximum": 3.141592653589793,
+      "step": 0.01,
+      "scale": "LINEAR",
+      "update": "UNIFORM"
+    },
+    {
+      "id": "carrier",
+      "label": "Principal frequency",
+      "type": "FLOAT",
+      "units": "cycles/domain",
+      "initial": [
+        3.2
+      ],
+      "minimum": 0.25,
+      "maximum": 8.0,
+      "step": 0.01,
+      "scale": "LOGARITHMIC",
+      "update": "UNIFORM"
+    },
+    {
+      "id": "bandwidth",
+      "label": "Bandwidth / packet size",
+      "type": "FLOAT",
+      "units": "1/domain",
+      "initial": [
+        1.0
+      ],
+      "minimum": 0.25,
+      "maximum": 4.0,
+      "step": 0.01,
+      "scale": "LOGARITHMIC",
+      "update": "SMOOTHED"
+    },
+    {
+      "id": "bend",
+      "label": "Fiber bending",
+      "type": "FLOAT",
+      "units": "domain",
+      "initial": [
+        0.18
+      ],
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "step": 0.01,
+      "scale": "LINEAR",
+      "update": "SMOOTHED"
+    },
+    {
+      "id": "travel",
+      "label": "Orbit displacement",
+      "type": "FLOAT",
+      "units": "domain",
+      "initial": [
+        0.25
+      ],
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "step": 0.01,
+      "scale": "LINEAR",
+      "update": "SMOOTHED"
+    },
+    {
+      "id": "amplitude",
+      "label": "Field amplitude",
+      "type": "FLOAT",
+      "units": "",
+      "initial": [
+        0.9
+      ],
+      "minimum": 0.1,
+      "maximum": 2.0,
+      "step": 0.01,
+      "scale": "LOGARITHMIC",
+      "update": "UNIFORM"
+    }
+  ],
+  "controlValues": {},
+  "definitionHash": "838b4d58a4b474318320868607667e39a45b4abc11e3f381078db8eec48e5554",
+  "feedbackEnabled": false,
+  "pigmentEnabled": false,
+  "reactionEnabled": false,
+  "particlesEnabled": false,
+  "id": "builtin.gabor-fibers",
+  "version": "1.0.0",
+  "author": "Procedural Visual Engine",
+  "license": "",
+  "coordinates": "centered aspect-correct domain",
+  "time": "seconds since reset; phase is bounded radians",
+  "authoring": "expression",
+  "expression": "amplitude * gabor(p + vec2(cos(phase),sin(phase))*travel + vec2(noise3d(vec3(p*.55,sin(phase))),noise3d(vec3(p*.55+vec2(17.1,-8.2),cos(phase))))*bend,orientation,carrier,bandwidth)",
+  "statePolicy": "restart",
+  "parameters": {
+    "scale": 2.4,
+    "warp": 0.65,
+    "detail": 0.25,
+    "motion": 0.15,
+    "colorRate": 0.025,
+    "height": 0.18,
+    "exposure": 1.1,
+    "bloom": 0.08,
+    "flow": 0.35,
+    "decay": 0.12,
+    "injection": 2.0,
+    "feed": 0.0367,
+    "kill": 0.0649,
+    "feedback": 0.65,
+    "radius": 0.12,
+    "role": 0.0,
+    "historyMix": 0.35,
+    "frequency": 2.0,
+    "drift": 0.2,
+    "stripeRate": 4.0,
+    "agitation": 0.5
+  }
+}

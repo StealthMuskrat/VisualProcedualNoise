@@ -42,12 +42,14 @@ public final class AuthoringPanel extends JPanel {
     formulas.add(new JScrollPane(expression), BorderLayout.CENTER);
     JPanel actions = new JPanel(new GridLayout(0, 1, 3, 3));
     JComboBox<String> templates =
-        new JComboBox<>(new String[] {"Radial waves", "Nested noise", "Interference"});
+        new JComboBox<>(
+            new String[] {"Radial waves", "Nested noise", "Interference", "Gabor field"});
     templates.addActionListener(e ->
         expression.setText(
             switch (templates.getSelectedIndex()) {
               case 1 -> "fbm(vec3(p * frequency + vec2(noise3d(vec3(p, phase))), sin(phase)))";
               case 2 -> "sin(p.x * stripeRate + phase) * cos(p.y * frequency - phase)";
+              case 3 -> "gabor(p + vec2(cos(phase),sin(phase))*drift, 0.65, frequency, 1.0)";
               default -> "sin(length(p) * frequency - phase)";
             }));
     actions.add(templates);
@@ -64,6 +66,7 @@ public final class AuthoringPanel extends JPanel {
     actions.add(apply);
     actions.add(new JLabel("p: coordinates · t: seconds · phase: radians"));
     actions.add(new JLabel("Knobs: frequency, drift, stripeRate"));
+    actions.add(new DirectionalPanel(submit));
     formulas.add(actions, BorderLayout.SOUTH);
     tabs.addTab("Formulas", formulas);
     JPanel nodes = new JPanel(new BorderLayout());

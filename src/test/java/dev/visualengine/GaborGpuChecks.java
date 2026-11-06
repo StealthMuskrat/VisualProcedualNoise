@@ -2,6 +2,7 @@ package dev.visualengine;
 
 import static org.lwjgl.opengl.GL43C.*;
 
+import dev.visualengine.authoring.*;
 import dev.visualengine.export.*;
 import dev.visualengine.gpu.*;
 import dev.visualengine.model.Settings;
@@ -17,7 +18,7 @@ public final class GaborGpuChecks {
     if (!value) throw new AssertionError(label);
   }
 
-  static int run() {
+  static int run() throws Exception {
     ShaderSources sources = new ShaderSources(null);
     String source =
         "#version 430 core\nuniform uint seed;\n"
@@ -144,7 +145,100 @@ public final class GaborGpuChecks {
       check(
           renderer.materialProgramId() != 0, "Gabor complete-field normal path renders finite map");
     }
+    effects();
     return count;
+  }
+
+  private static void effects() throws Exception {
+    int[] first = null;
+    for (var style : DirectionalEffects.Style.values()) {
+      Settings settings = new Settings();
+      DirectionalEffects.create(style).apply(settings);
+      settings.grid = 65;
+      settings.particles = 0;
+      settings.historyLayers = 0;
+      try (Renderer renderer = new Renderer(new ShaderSources(null))) {
+        renderer.reset(settings);
+        renderer.render(settings, 0, 96, 64, 0, 0, false);
+        int[] original = Capture.read(96, 64).getRGB(0, 0, 96, 64, null, 0, 96);
+        check(
+            Arrays.stream(original).distinct().count() > 128,
+            "directional effect produces varied visible image: " + style);
+        if (first == null) first = original;
+        else
+          check(
+              !Arrays.equals(first, original),
+              "fibers and weave have distinct rendered compositions");
+        Capture.write(
+            java.nio.file.Path.of(
+                "build/reports/gpu-gallery/gabor-"
+                    + style.name().toLowerCase(Locale.ROOT)
+                    + ".png"),
+            Capture.read(96, 64),
+            settings,
+            0,
+            glGetString(GL_RENDERER));
+        int program = renderer.materialProgramId();
+        settings.setEffectValue("orientation", List.of(-.8));
+        renderer.configure(settings);
+        renderer.render(settings, 0, 96, 64, 0, 0, false);
+        int[] edited = Capture.read(96, 64).getRGB(0, 0, 96, 64, null, 0, 96);
+        check(
+            program == renderer.materialProgramId() && !Arrays.equals(original, edited),
+            "directional controls change image without relinking: " + style);
+        var height =
+            renderer.captureMap(
+                settings,
+                0,
+                TextureMap.Kind.HEIGHT,
+                new CaptureSize(96, 64),
+                new TextureMap.Range(-2, 2),
+                0,
+                0,
+                false);
+        settings.graphEnabled = true;
+        settings.graph.nodes =
+            new ArrayList<>(
+                List.of(
+                    new EffectGraph.Node(
+                        "field",
+                        EffectGraph.Kind.FORMULA,
+                        List.of(),
+                        settings.expression,
+                        0,
+                        0,
+                        false,
+                        "",
+                        "")));
+        settings.graph.output = "field";
+        renderer.configure(settings);
+        var graph =
+            renderer.captureMap(
+                settings,
+                0,
+                TextureMap.Kind.HEIGHT,
+                new CaptureSize(96, 64),
+                new TextureMap.Range(-2, 2),
+                0,
+                0,
+                false);
+        float[] a = new float[96 * 64], b = new float[a.length];
+        ByteBuffer.wrap(height.floats()).order(ByteOrder.nativeOrder()).asFloatBuffer().get(a);
+        ByteBuffer.wrap(graph.floats()).order(ByteOrder.nativeOrder()).asFloatBuffer().get(b);
+        check(
+            maxDifference(a, b) < 1e-5,
+            "directional formula and typed graph preserve field values: " + style);
+        settings.graphEnabled = false;
+        settings.loopSeconds = 8;
+        renderer.configure(settings);
+        renderer.render(settings, 0, 96, 64, 0, 0, false);
+        int[] start = Capture.read(96, 64).getRGB(0, 0, 96, 64, null, 0, 96);
+        renderer.render(settings, 8, 96, 64, 0, 0, false);
+        check(
+            Arrays.equals(start, Capture.read(96, 64).getRGB(0, 0, 96, 64, null, 0, 96)),
+            "phase-only directional effect repeats at configured analytic period: " + style);
+      }
+    }
   }
 
   private static boolean finite(float[] data) {
