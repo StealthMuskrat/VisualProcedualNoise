@@ -1,6 +1,6 @@
 # Custom fields and reusable effects
 
-The Authoring tab offers scalar formulas, three starting templates and a typed node canvas. Numeric controls update uniforms. Applying a structural edit builds a candidate program; parse, type, compile or allocation failures preserve the current scene.
+The Authoring tab offers scalar formulas, four starting templates, editable directional effects and a typed node canvas. Numeric controls update uniforms. Applying a structural edit builds a candidate program; parse, type, compile or allocation failures preserve the current scene.
 
 ## Formula language
 
@@ -14,9 +14,11 @@ fbm(vec3(p * frequency, sin(phase)))
 0.6 * noise3d(vec3(p * frequency, t * drift)) + 0.4 * sin(p.x * stripeRate + phase)
 ```
 
-Supported operations are `+ - * /`, parentheses, `vec2/3/4`, `xyzw` swizzles, `sin`, `cos`, `abs`, `floor`, `fract`, `exp`, `length`, `dot`, `min`, `max`, `mix`, `clamp`, `smoothstep`, `noise3d`, `fbm`, `cellular`, `safeDiv`, `sqrtSafe`, `powSafe` and `normalizeSafe`.
+Supported operations are `+ - * /`, parentheses, `vec2/3/4`, `xyzw` swizzles, `sin`, `cos`, `abs`, `floor`, `fract`, `exp`, `length`, `dot`, `min`, `max`, `mix`, `clamp`, `smoothstep`, `noise3d`, `fbm`, `cellular`, `gabor`, `safeDiv`, `sqrtSafe`, `powSafe` and `normalizeSafe`.
 
 `noise3d` is seed-controlled gradient noise in an approximate signed unit range. `fbm` has five normalized octaves. `cellular` returns F1, F2 and a stable normalized region hash, rather than an exact distance to a cell boundary.
+
+`gabor(vec2, orientation, principalFrequency, bandwidth)` returns a bounded-cost signed directional field. It is available in formulas and typed graph expressions. The Authoring tab can also load complete fibers/weave effects with custom controls. See [directional field units, clamps, filtering limits and examples](DIRECTIONAL_NOISE.md).
 
 Ordinary division retains ordinary floating-point behavior. `safeDiv` returns zero for denominator magnitude below 1e-6. `sqrtSafe` clamps its input at zero. `powSafe` clamps the base to at least 1e-6 and the exponent to ±16. `normalizeSafe` divides by at least 1e-6. Nonfinite scalar output is highlighted magenta. Formula time uses shader float precision; use bounded `phase` for long-running periodic work. Stateful scenes and arbitrary nonperiodic formulas do not have a seamless-loop guarantee.
 

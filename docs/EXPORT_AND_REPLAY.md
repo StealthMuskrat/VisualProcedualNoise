@@ -20,6 +20,8 @@ Replay targets the same build, algorithm revision and compatible device. It does
 
 [Compatible preset morphing](MORPHING.md) records applied blends as ordinary control events. Capturing/loading endpoints leaves recording untouched. Applying a blend during playback stops playback after validation and preserves the developed state. Startup `--morph-target` / `--morph-amount` resolves a restarting configuration and cannot override a replay or checkpoint.
 
+[Directional Gabor effects](DIRECTIONAL_NOISE.md) use ordinary effect descriptors and control events. Their seeded fields, integrated phase and unfinished bandwidth smoothing follow the same capture, replay and checkpoint contracts as other custom effects.
+
 ## Image sequences
 
 ```powershell

@@ -40,6 +40,8 @@ Version 0.6 adds height, normal, mask, linear-color and emission texture maps as
 
 Version 0.7 adds compatible preset morphing. Capture or load two endpoints in the Morph tab, then apply a blend of numeric controls while simulation state and animation phase continue. Use `--preset examples/presets/morph-a.json --morph-target examples/presets/morph-b.json --morph-amount 0.5` for the bundled example. See [compatibility, interpolation and persistence](docs/MORPHING.md).
 
+Version 0.8 adds directional Gabor-style noise, a formula template, and editable fibers/weave effects in the Authoring tab. Try `--effect examples/effects/gabor-fibers.json` or `--effect examples/effects/gabor-weave.json`. See [controls, bounded evaluation, research reference and limits](docs/DIRECTIONAL_NOISE.md).
+
 Discovery bookmarks save artwork and its complete restarting configuration under the user-data directory. A/B comparison shows a frozen or saved finished frame on the left and the live scene on the right; this does not run two independent simulations. GPU storage is estimated before quality changes and capped at 512 MiB.
 
 ## Verification
