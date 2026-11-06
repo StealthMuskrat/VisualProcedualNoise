@@ -192,6 +192,7 @@ public final class CoreChecks {
     count += CheckpointChecks.run();
     count += QualityChecks.run();
     count += CaptureChecks.run();
+    count += DiscoveryChecks.run();
     System.out.println("Core checks passed: " + count);
   }
 
