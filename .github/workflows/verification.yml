@@ -1,0 +1,85 @@
+name: Verify implementation and Windows package
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-opengl:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      EGL_PLATFORM: surfaceless
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      LP_NUM_THREADS: "2"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: gradle
+      - name: Install software OpenGL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1-mesa-dri
+      - name: Check JVM and OpenGL contracts and assemble distribution
+        run: ./gradlew --no-daemon check gpuCheck installDist
+      - name: Verify installed launcher and replay export
+        run: |
+          build/install/procedural-visual-engine/bin/procedural-visual-engine --verify-installation
+          python3 scripts/verify-replay.py
+      - name: Save verification reports and recipe gallery
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: linux-opengl-reports
+          path: build/reports/
+          retention-days: 14
+
+  windows-package:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: gradle
+      - name: Check JVM contracts and build Windows x64 app image
+        run: ./gradlew.bat --no-daemon check packageWindows -PnativePlatform=natives-windows
+      - name: Verify bundled runtime resources and native loading
+        shell: pwsh
+        run: |
+          $app = Resolve-Path "build/package/ProceduralVisualEngine/ProceduralVisualEngine.exe"
+          $process = Start-Process -FilePath $app -ArgumentList "--verify-installation" -Wait -PassThru -RedirectStandardOutput "build/package-verification.stdout.log" -RedirectStandardError "build/package-verification.stderr.log"
+          Get-Content "build/package-verification.stdout.log"
+          Get-Content "build/package-verification.stderr.log"
+          if ($process.ExitCode -ne 0) { throw "Packaged application verification failed: $($process.ExitCode)" }
+          Compress-Archive -Path "build/package/ProceduralVisualEngine" -DestinationPath "build/ProceduralVisualEngine-windows-x64.zip"
+      - name: Save Windows app image
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: ProceduralVisualEngine-windows-x64
+          path: build/ProceduralVisualEngine-windows-x64.zip
+          if-no-files-found: error
+          retention-days: 14
+      - name: Save Windows diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: windows-verification-reports
+          path: |
+            build/reports/
+            build/package-verification.*.log
+          retention-days: 14
