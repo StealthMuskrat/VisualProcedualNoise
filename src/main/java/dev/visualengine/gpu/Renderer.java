@@ -416,6 +416,22 @@ public final class Renderer implements AutoCloseable {
     }
   }
 
+  public void setReference(dev.visualengine.export.Capture.Pixels image) {
+    // Keep the old reference until allocation and upload of the candidate both succeed.
+    Budget.require(bytes() + (long) image.width() * image.height() * 4);
+    Texture candidate = new Texture(image.width(), image.height(), GL_RGBA8);
+    try {
+      candidate.clamp();
+      GpuTransfers.write(candidate, image.rgba());
+    } catch (RuntimeException e) {
+      candidate.close();
+      throw e;
+    }
+    Texture previous = reference;
+    reference = candidate;
+    if (previous != null) previous.close();
+  }
+
   public static void uniforms(
       Program p, Settings s, double time, int w, int h, double x, double y, boolean brush) {
     p.v2("viewport", w, h);

@@ -36,6 +36,7 @@ public final class Main {
               + "--export DIRECTORY --frames N --fps 24|30|60|120 --warmup TICKS\n"
               + "--replay take.replay.json --list-recipes\n"
               + "--checkpoint study.vstate --save-checkpoint study.vstate\n"
+              + "--bookmark LABEL --discoveries DIRECTORY --discovery ID --reference-discovery ID\n"
               + "Interactive: Space pause, period step, R reset, F5 reload, F11 fullscreen, Tab"
               + " controls, Escape exit");
       return;

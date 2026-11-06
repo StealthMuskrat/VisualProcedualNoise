@@ -260,6 +260,7 @@ public final class GpuChecks {
           "history ring bounds and timestamps");
       checkpoints();
       stillCaptures();
+      savedReferences();
       reloadFailure(window);
       check(glGetError() == GL_NO_ERROR, "no final GL error");
       System.out.println("GPU checks passed: " + count + " | " + glGetString(GL_RENDERER));
@@ -384,6 +385,60 @@ public final class GpuChecks {
   private static boolean allFiniteRange(float[] values, float minimum, float maximum) {
     for (float x : values) if (!Float.isFinite(x) || x < minimum || x > maximum) return false;
     return true;
+  }
+
+  private static void savedReferences() {
+    Settings s = settings();
+    try (Renderer r = new Renderer(new ShaderSources(null))) {
+      r.reset(s);
+      r.render(s, 0, 96, 64, 0, 0, false);
+      int[] before = image();
+      GpuSnapshot state = r.snapshot(s, 0);
+      long memory = r.bytes();
+      var source =
+          new java.awt.image.BufferedImage(96, 64, java.awt.image.BufferedImage.TYPE_INT_RGB);
+      for (int y = 0; y < 64; y++)
+        for (int x = 0; x < 96; x++) source.setRGB(x, y, y < 32 ? 0xff24a86c : 0xff4c38b8);
+      var pixels = Capture.pixels(source);
+      r.setReference(pixels);
+      r.render(s, 0, 96, 64, 0, 0, false);
+      int[] comparison = image();
+      check(
+          comparison[7 * 96 + 12] == source.getRGB(12, 7)
+              && comparison[55 * 96 + 12] == source.getRGB(12, 55),
+          "loaded reference preserves top-left PNG orientation and encoded colors");
+      check(
+          comparison[7 * 96 + 80] == before[7 * 96 + 80],
+          "saved reference leaves live right half intact");
+      GpuSnapshot after = r.snapshot(s, 0);
+      check(
+          state.blobs().entrySet().stream()
+              .allMatch(e -> Arrays.equals(e.getValue(), after.blobs().get(e.getKey()))),
+          "loading a saved reference does not advance or replace persistent state");
+      check(
+          Arrays.equals(pixels.rgba(), after.blobs().get("reference")),
+          "uploaded reference survives checkpoint readback exactly");
+      r.setReference(pixels);
+      check(
+          r.bytes() == memory + 96 * 64 * 4,
+          "reference replacement has bounded resource accounting");
+      boolean rejected = false;
+      try {
+        r.setReference(new Capture.Pixels(96, 64, new byte[3]));
+      } catch (IllegalArgumentException e) {
+        rejected = true;
+      }
+      check(
+          rejected
+              && Arrays.equals(
+                  after.blobs().get("reference"), r.snapshot(s, 0).blobs().get("reference")),
+          "invalid reference preserves the active reference");
+      r.clearReference();
+      r.render(s, 0, 96, 64, 0, 0, false);
+      check(
+          memory == r.bytes() && Arrays.equals(before, image()),
+          "clearing imported reference restores the original view and budget");
+    }
   }
 
   private static void stillCaptures() {

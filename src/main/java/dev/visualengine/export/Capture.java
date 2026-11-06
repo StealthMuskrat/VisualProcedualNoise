@@ -11,6 +11,40 @@ import javax.imageio.ImageIO;
 import org.lwjgl.system.MemoryUtil;
 
 public final class Capture {
+  /** Owned, bottom-up opaque RGBA bytes prepared on a file worker for reference upload. */
+  public record Pixels(int width, int height, byte[] rgba) {
+    public Pixels {
+      if (width < 1
+          || height < 1
+          || width > 8192
+          || height > 8192
+          || (long) width * height > 33_554_432
+          || rgba == null
+          || rgba.length != (long) width * height * 4)
+        throw new IllegalArgumentException("Invalid reference image");
+    }
+  }
+
+  public static Pixels pixels(BufferedImage image) {
+    int width = image.getWidth(), height = image.getHeight();
+    if (width < 1
+        || height < 1
+        || width > 8192
+        || height > 8192
+        || (long) width * height > 33_554_432)
+      throw new IllegalArgumentException("Reference image exceeds 32 megapixels");
+    byte[] rgba = new byte[width * height * 4];
+    for (int y = 0; y < height; y++)
+      for (int x = 0; x < width; x++) {
+        int color = image.getRGB(x, y), offset = ((height - 1 - y) * width + x) * 4;
+        rgba[offset] = (byte) (color >>> 16);
+        rgba[offset + 1] = (byte) (color >>> 8);
+        rgba[offset + 2] = (byte) color;
+        rgba[offset + 3] = (byte) 255;
+      }
+    return new Pixels(width, height, rgba);
+  }
+
   public record View(int renderWidth, int renderHeight, boolean includesReference) {
     public View {
       if (renderWidth < 1 || renderHeight < 1 || renderWidth > 8192 || renderHeight > 8192)

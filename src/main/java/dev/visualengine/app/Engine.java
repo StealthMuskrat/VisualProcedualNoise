@@ -8,6 +8,7 @@ import dev.visualengine.gpu.*;
 import dev.visualengine.model.Settings;
 import dev.visualengine.platform.Window;
 import dev.visualengine.presets.CheckpointIO;
+import dev.visualengine.presets.DiscoveryStore;
 import dev.visualengine.presets.PresetIO;
 import dev.visualengine.time.*;
 import dev.visualengine.ui.ControlPanel;
@@ -18,6 +19,8 @@ import java.util.concurrent.*;
 public final class Engine implements AutoCloseable {
   private final Options options;
   private final Path data;
+  private final DiscoveryStore discoveries;
+  private String bookmark, sourceDiscovery;
   private final ConcurrentLinkedQueue<Command> commands = new ConcurrentLinkedQueue<>();
   private final ThreadPoolExecutor io =
       new ThreadPoolExecutor(1, 1, 0, TimeUnit.SECONDS, new ArrayBlockingQueue<>(2));
@@ -51,9 +54,16 @@ public final class Engine implements AutoCloseable {
   public Engine(Options options, Path data) {
     this.options = options;
     this.data = data;
+    this.discoveries =
+        new DiscoveryStore(
+            options.discoveries == null ? data.resolve("discoveries") : options.discoveries);
   }
 
   public void run() throws Exception {
+    if (options.discovery != null) {
+      settings = discoveries.load(options.discovery).settings();
+      sourceDiscovery = options.discovery;
+    }
     CheckpointIO.Snapshot initialCheckpoint = null;
     if (options.checkpoint != null) {
       initialCheckpoint = CheckpointIO.load(options.checkpoint);
@@ -92,6 +102,8 @@ public final class Engine implements AutoCloseable {
     renderer = new Renderer(new ShaderSources(options.shaders));
     if (initialCheckpoint != null) restoreCheckpoint(initialCheckpoint);
     else renderer.configure(settings);
+    if (options.referenceDiscovery != null)
+      renderer.setReference(Capture.pixels(discoveries.artwork(options.referenceDiscovery)));
     device =
         glGetString(GL_VENDOR) + " / " + glGetString(GL_RENDERER) + " / " + glGetString(GL_VERSION);
     if (!options.headless) controls = new ControlPanel(this::submit, settings, data);
@@ -222,6 +234,12 @@ public final class Engine implements AutoCloseable {
         saveCheckpoint(checkpointSave, false);
         checkpointSave = null;
       }
+      if (bookmark != null) {
+        saveDiscovery(bookmark, false);
+        bookmark = null;
+      }
+      if (options.bookmark != null && rendered + 1 == options.frames)
+        saveDiscovery(options.bookmark, options.headless);
       glfwSwapBuffers(window.handle);
       rendered++;
       benchmark.record(
@@ -335,7 +353,9 @@ public final class Engine implements AutoCloseable {
         key = "effectValue:" + ((Command.EffectEdit) c.value()).id();
       if (c.type().equals("parameter")
           || c.type().equals("reload")
-          || c.type().equals("effectValue")) edits.put(key, c);
+          || c.type().equals("effectValue")
+          || c.type().equals("discoveryScan")
+          || c.type().equals("discoveryThumbnails")) edits.put(key, c);
       else apply(c);
     }
     edits.values().forEach(this::apply);
@@ -343,6 +363,7 @@ public final class Engine implements AutoCloseable {
 
   private void apply(Command c) {
     Settings before = settings.copy();
+    String sourceBefore = sourceDiscovery;
     boolean resetBefore = reset;
     try {
       switch (c.type()) {
@@ -435,6 +456,7 @@ public final class Engine implements AutoCloseable {
         case "loadReplay" ->
             enqueueIO(() -> submit(new Command("replayLoaded", ReplayLog.load((Path) c.value()))));
         case "replayLoaded" -> {
+          sourceDiscovery = null;
           ReplayLog candidate = (ReplayLog) c.value();
           if (Math.abs(
                   (double) window.width / window.height
@@ -499,6 +521,7 @@ public final class Engine implements AutoCloseable {
         case "load" ->
             enqueueIO(() -> submit(new Command("loaded", PresetIO.load((Path) c.value()))));
         case "loaded" -> {
+          sourceDiscovery = null;
           remember();
           settings = (Settings) c.value();
           reset = true;
@@ -538,9 +561,96 @@ public final class Engine implements AutoCloseable {
         }
         case "freeze" -> freeze = true;
         case "clearReference" -> renderer.clearReference();
-        case "bookmark" ->
-            capture =
-                data.resolve("discoveries").resolve("study-" + System.currentTimeMillis() + ".png");
+        case "bookmark" -> {
+          bookmark = settings.name.replaceAll("\\p{Cc}", " ").strip();
+          if (bookmark.isEmpty()) bookmark = "Untitled study";
+          return;
+        }
+        case "discoveryScan" -> {
+          long generation = ((Command.History) c.value()).generation();
+          if (!enqueueIO(
+                  () -> {
+                    try {
+                      var scan = discoveries.scan();
+                      if (controls != null) controls.showDiscoveries(generation, scan);
+                    } catch (Exception e) {
+                      if (controls != null) controls.discoveryFailure(generation, e.getMessage());
+                    }
+                  })
+              && controls != null)
+            controls.discoveryFailure(
+                generation, "File queue full; try Refresh after captures finish");
+          return;
+        }
+        case "discoveryThumbnails" -> {
+          var request = (Command.Thumbnails) c.value();
+          enqueueIO(() -> {
+            Map<String, java.awt.image.BufferedImage> images = new LinkedHashMap<>();
+            for (String id : request.ids()) {
+              try {
+                images.put(id, discoveries.thumbnail(id));
+              } catch (Exception e) {
+                status("Preview unavailable: " + id);
+              }
+            }
+            if (controls != null) controls.showDiscoveryThumbnails(request.generation(), images);
+          });
+          return;
+        }
+        case "annotateDiscovery" -> {
+          var edit = (Command.DiscoveryAnnotation) c.value();
+          enqueueIO(() -> {
+            discoveries.annotate(edit.id(), edit.label(), edit.favorite());
+            if (controls != null) controls.discoveriesChanged();
+          });
+          return;
+        }
+        case "loadDiscovery" -> {
+          var request = (Command.DiscoveryBranch) c.value();
+          enqueueIO(() ->
+              submit(
+                  new Command(
+                      "discoveryLoaded",
+                      new Command.DiscoveryActivation(
+                          request.id(),
+                          discoveries.branch(
+                              request.id(),
+                              request.variation(),
+                              request.lockComposition(),
+                              System.nanoTime())))));
+          return;
+        }
+        case "discoveryLoaded" -> {
+          var candidate = (Command.DiscoveryActivation) c.value();
+          candidate.settings().validate();
+          dev.visualengine.authoring.EffectPackage.resolveResources(candidate.settings());
+          renderer.configure(candidate.settings());
+          remember();
+          settings = candidate.settings();
+          sourceDiscovery = candidate.id();
+          playbackLog = null;
+          recording = false;
+          recordingLog = null;
+          replayBrush = false;
+          reset = true;
+          step = freeze = false;
+          discardElapsed = true;
+          if (controls != null) controls.sync(settings);
+          status("Discovery opened as a configuration; state restarted");
+          return;
+        }
+        case "discoveryReference" -> {
+          enqueueIO(() ->
+              submit(
+                  new Command(
+                      "referenceLoaded", Capture.pixels(discoveries.artwork((String) c.value())))));
+          return;
+        }
+        case "referenceLoaded" -> {
+          renderer.setReference((Capture.Pixels) c.value());
+          status("Saved artwork loaded as A/B reference");
+          return;
+        }
         case "effectValue" -> {
           remember();
           var edit = (Command.EffectEdit) c.value();
@@ -590,6 +700,7 @@ public final class Engine implements AutoCloseable {
                         "effectLoaded",
                         dev.visualengine.authoring.EffectPackage.load((Path) c.value()))));
         case "effectLoaded" -> {
+          sourceDiscovery = null;
           remember();
           ((dev.visualengine.authoring.EffectPackage) c.value()).apply(settings);
           reset = true;
@@ -631,6 +742,7 @@ public final class Engine implements AutoCloseable {
           && !c.type().equals("record")
           && !c.type().equals("saveReplay")) recordingLog.recordControl(clock.tick() + 1, settings);
     } catch (Exception e) {
+      sourceDiscovery = sourceBefore;
       reset = resetBefore;
       settings = before;
       if (controls != null) controls.sync(settings);
@@ -653,6 +765,7 @@ public final class Engine implements AutoCloseable {
     Renderer previous = renderer;
     renderer = candidate;
     settings = target;
+    sourceDiscovery = null;
     signals.restore(restoredSignals.snapshot(target), target);
     clock.restore(snapshot.tick());
     playbackLog = restoredReplay;
@@ -754,6 +867,34 @@ public final class Engine implements AutoCloseable {
 
   private void capture(Path path) {
     capture(path, false);
+  }
+
+  private void saveDiscovery(String label, boolean offline) {
+    if (!offline && io.getQueue().remainingCapacity() == 0) {
+      status("File queue full; wait before bookmarking");
+      return;
+    }
+    var image = Capture.read(window.width, window.height);
+    Settings snapshot = settings.copy();
+    var active = signals.frame(settings);
+    snapshot.motionClock = active.motionClock;
+    snapshot.colorClock = active.colorClock;
+    long tick = clock.tick();
+    var view =
+        new Capture.View(
+            Math.max(1, (int) (window.width * settings.displayScale)),
+            Math.max(1, (int) (window.height * settings.displayScale)),
+            renderer.hasReference());
+    String signature = renderer.programSignature(), parent = sourceDiscovery;
+    IOAction write =
+        () -> {
+          var saved =
+              discoveries.save(label, image, snapshot, tick, device, view, signature, parent);
+          status("Discovery saved: " + saved.id());
+          if (controls != null) controls.discoveriesChanged();
+        };
+    if (offline) enqueueIOBlocking(write);
+    else enqueueIO(write);
   }
 
   private void capture(Path path, boolean offline) {

@@ -28,6 +28,7 @@ public final class ControlPanel implements AutoCloseable {
   private AuthoringPanel authoring;
   private EffectControlsPanel effectControls;
   private ModulationPanel modulation;
+  private DiscoveryPanel discoveries;
   private boolean syncing;
 
   public ControlPanel(Consumer<Command> submit, Settings initial, Path data) {
@@ -241,6 +242,11 @@ public final class ControlPanel implements AutoCloseable {
     tabs.addTab("Controls", new JScrollPane(params));
     tabs.addTab("Quality", new JScrollPane(quality));
     tabs.addTab("Files", new JScrollPane(files));
+    discoveries = new DiscoveryPanel(submit);
+    tabs.addTab("Discoveries", discoveries);
+    tabs.addChangeListener(e -> {
+      if (tabs.getSelectedComponent() == discoveries) discoveries.open();
+    });
     authoring = new AuthoringPanel(submit, s);
     tabs.addTab("Authoring", authoring);
     effectControls = new EffectControlsPanel(submit, s);
@@ -351,6 +357,23 @@ public final class ControlPanel implements AutoCloseable {
 
   public void showStatus(String text) {
     SwingUtilities.invokeLater(() -> status.setText(text.replace('\n', ' ')));
+  }
+
+  public void showDiscoveries(long generation, dev.visualengine.presets.DiscoveryStore.Scan scan) {
+    SwingUtilities.invokeLater(() -> discoveries.showScan(generation, scan));
+  }
+
+  public void discoveryFailure(long generation, String message) {
+    SwingUtilities.invokeLater(() -> discoveries.failure(generation, message));
+  }
+
+  public void showDiscoveryThumbnails(
+      long generation, Map<String, java.awt.image.BufferedImage> images) {
+    SwingUtilities.invokeLater(() -> discoveries.showThumbnails(generation, images));
+  }
+
+  public void discoveriesChanged() {
+    SwingUtilities.invokeLater(() -> discoveries.changed());
   }
 
   public void show() {

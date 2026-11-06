@@ -7,6 +7,8 @@ public final class Options {
   public int frames, width = 1280, height = 800;
   public Path shaders, preset, capture;
   public Path effect;
+  public Path discoveries;
+  public String bookmark, discovery, referenceDiscovery;
   public dev.visualengine.export.CaptureSize captureSize;
   public Path checkpoint, saveCheckpoint;
   public boolean explicitSize;
@@ -34,6 +36,13 @@ public final class Options {
         case "--shaders" -> o.shaders = Path.of(args[++i]);
         case "--preset" -> o.preset = Path.of(args[++i]);
         case "--effect" -> o.effect = Path.of(args[++i]);
+        case "--discoveries" -> o.discoveries = Path.of(args[++i]);
+        case "--bookmark" -> {
+          o.bookmark = args[++i];
+          dev.visualengine.presets.DiscoveryStore.validateLabel(o.bookmark);
+        }
+        case "--discovery" -> o.discovery = args[++i];
+        case "--reference-discovery" -> o.referenceDiscovery = args[++i];
         case "--checkpoint" -> o.checkpoint = Path.of(args[++i]);
         case "--save-checkpoint" -> o.saveCheckpoint = Path.of(args[++i]);
         case "--capture" -> o.capture = Path.of(args[++i]);
@@ -89,6 +98,12 @@ public final class Options {
             || o.expression != null))
       throw new IllegalArgumentException(
           "Use --checkpoint without preset, effect, replay, or scene overrides");
+    if (o.discovery != null
+        && (o.preset != null || o.effect != null || o.replay != null || o.checkpoint != null))
+      throw new IllegalArgumentException(
+          "Use --discovery without preset, effect, replay or checkpoint sources");
+    if (o.bookmark != null && o.frames == 0)
+      throw new IllegalArgumentException("--bookmark requires --frames > 0");
     if (o.captureSize != null && o.capture == null)
       throw new IllegalArgumentException("--capture-size requires --capture");
     if (o.replay != null && o.quality != null)

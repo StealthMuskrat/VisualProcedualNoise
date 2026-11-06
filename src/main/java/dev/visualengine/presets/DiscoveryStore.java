@@ -211,8 +211,14 @@ public final class DiscoveryStore {
         document.has("programSignature")
             ? document.get("programSignature").getAsString()
             : "unrecorded";
-    if (!legacy && !signature.matches("[a-f0-9]{64}"))
+    if (!(legacy && signature.equals("unrecorded")) && !signature.matches("[a-f0-9]{64}"))
       throw new IOException("Invalid discovery shader signature");
+    String engineVersion = document.get("engineVersion").getAsString();
+    List<String> dependencies =
+        settings.graph.groups.stream().map(g -> g.id() + "@" + g.version()).sorted().toList();
+    if (!engineVersion.matches("[A-Za-z0-9_.+\\-]{1,64}")
+        || dependencies.stream().anyMatch(k -> k.length() > 129))
+      throw new IOException("Discovery summary text exceeds its bounds");
     Summary summary =
         new Summary(
             id,
@@ -228,10 +234,10 @@ public final class DiscoveryStore {
             settings.grid,
             settings.particles,
             settings.historyLayers,
-            document.get("engineVersion").getAsString(),
+            engineVersion,
             document.get("algorithmRevision").getAsString(),
             signature,
-            settings.graph.groups.stream().map(g -> g.id() + "@" + g.version()).sorted().toList(),
+            dependencies,
             document.has("captureIncludesReference")
                 && document.get("captureIncludesReference").getAsBoolean());
     return new Loaded(summary, settings);
