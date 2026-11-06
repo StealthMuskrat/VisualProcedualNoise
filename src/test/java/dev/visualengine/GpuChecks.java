@@ -264,9 +264,84 @@ public final class GpuChecks {
       stillCaptures();
       savedReferences();
       textureMaps();
+      morphs();
       reloadFailure(window);
       check(glGetError() == GL_NO_ERROR, "no final GL error");
       System.out.println("GPU checks passed: " + count + " | " + glGetString(GL_RENDERER));
+    }
+  }
+
+  private static void morphs() {
+    Settings a = settings();
+    Recipes.apply(a, Settings.Recipe.TIME_EXCAVATION);
+    a.pigmentEnabled = a.reactionEnabled = a.feedbackEnabled = a.particlesEnabled = true;
+    Settings b = a.copy();
+    b.set("warp", 1.8);
+    b.set("exposure", 3);
+    b.set("motion", 1.4);
+    ControlSignals signals = new ControlSignals();
+    try (Renderer r = new Renderer(new ShaderSources(null))) {
+      r.reset(a);
+      for (int tick = 1; tick <= 32; tick++) checkpointTick(r, signals, a, tick);
+      double time = 32 * Playback.DT;
+      r.render(signals.frame(a), time, 96, 64, .1, .2, false);
+      int[] original = image();
+      GpuSnapshot before = r.snapshot(a, 32);
+      String signature = r.programSignature();
+      long bytes = r.bytes();
+      Settings middle = PresetMorph.blend(a, b, a, .5);
+      r.configure(middle);
+      signals.snap(middle);
+      r.render(signals.frame(middle), time, 96, 64, .1, .2, false);
+      check(!Arrays.equals(original, image()), "numeric morph changes rendered composition");
+      GpuSnapshot after = r.snapshot(middle, 32);
+      check(
+          sameBlobs(before, after)
+              && dev.visualengine.presets.PresetIO.JSON
+                  .toJsonTree(before.simulation())
+                  .equals(dev.visualengine.presets.PresetIO.JSON.toJsonTree(after.simulation()))
+              && r.bytes() == bytes
+              && signature.equals(r.programSignature()),
+          "morph preserves every persistent GPU byte, simulation metadata and program source");
+      Settings restored = PresetMorph.blend(a, b, middle, 0);
+      r.configure(restored);
+      signals.snap(restored);
+      r.render(signals.frame(restored), time, 96, 64, .1, .2, false);
+      check(Arrays.equals(original, image()), "returning to endpoint reproduces paused frame");
+      Settings incompatible = b.copy();
+      incompatible.palette++;
+      boolean rejected = false;
+      try {
+        r.configure(PresetMorph.blend(a, incompatible, restored, .5));
+      } catch (IllegalArgumentException expected) {
+        rejected = true;
+      }
+      r.render(signals.frame(restored), time, 96, 64, .1, .2, false);
+      check(
+          rejected
+              && Arrays.equals(original, image())
+              && sameBlobs(before, r.snapshot(restored, 32)),
+          "incompatible morph preserves live image and state");
+      checkpointTick(r, signals, restored, 33);
+      check(
+          !sameBlobs(before, r.snapshot(restored, 33)),
+          "simulation continues after morph without reset");
+      a = settings();
+      a.recipe = Settings.Recipe.CUSTOM;
+      a.installEffectControls(List.of(AuthoringChecks.scalar()), Map.of());
+      a.expression = "sin(p.x * amplitude) + sin(p.y)";
+      b = a.copy();
+      b.setEffectValue("amplitude", List.of(2.));
+      r.configure(a);
+      r.render(a, 0, 96, 64, 0, 0, false);
+      original = image();
+      signature = r.programSignature();
+      middle = PresetMorph.blend(a, b, a, .5);
+      r.configure(middle);
+      r.render(middle, 0, 96, 64, 0, 0, false);
+      check(
+          !Arrays.equals(original, image()) && signature.equals(r.programSignature()),
+          "custom-control morph changes image with identical program source");
     }
   }
 
