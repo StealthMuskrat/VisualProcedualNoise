@@ -26,4 +26,14 @@ For editable engine resources: `gradlew.bat run --args="--shaders src/main/resou
 
 Dependencies are pinned to LWJGL 3.4.3 and Gradle 9.1.0. Gradle's [9.1 release notes](https://docs.gradle.org/9.1.0/release-notes.html) confirm Java 25 support. See [LWJGL releases](https://github.com/LWJGL/lwjgl3/releases) and [FFM documentation](https://github.com/LWJGL/lwjgl3/blob/master/doc/FFM.md) for its Java 25 backend. Classpath launches explicitly enable native access.
 
-GitHub testing is deferred until implementation is complete. Windows hardware validation, vendor measurements and release support claims require an actual tested device.
+The recipe menu includes sixteen analytic and stateful compositions. The Authoring tab provides templates, bounded scalar formulas and a typed graph canvas. The Modulation tab provides oscillators, smooth random signals, envelopes, keyframes and inspectable macro mappings. See [authoring](docs/AUTHORING.md) and [export, replay and packaging](docs/EXPORT_AND_REPLAY.md) for contracts and limits.
+
+Discovery bookmarks save artwork and its complete configuration under the user-data directory. A/B comparison shows a frozen finished frame on the left and the live scene on the right; this does not run two independent simulations. GPU storage is estimated before quality changes and capped at 512 MiB.
+
+## Verification
+
+`./gradlew check` runs the JVM contract suite. `EGL_PLATFORM=surfaceless ./gradlew gpuCheck` runs actual OpenGL checks on a suitable Linux/Mesa installation. The GPU suite also writes a recipe gallery under `build/reports/gpu-gallery`. Windows GPU checks require a capable physical driver.
+
+Use `--headless --frames 120 --size 1280x800 --benchmark benchmark.json` for a benchmark with thirty warmup frames. It reports CPU frame wall time, nonblocking GPU render and tick timings, percentiles, exact controls, dimensions, memory and device metadata. Use the same seed, quality, input and device for comparisons. Software-driver timings do not establish hardware requirements.
+
+See [verification status](docs/VERIFICATION.md) for tested behavior and remaining platform acceptance work. GitHub verification is introduced after the implementation batches; Windows hardware and multi-vendor performance claims require actual tested devices.

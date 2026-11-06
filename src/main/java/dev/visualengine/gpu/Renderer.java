@@ -1,107 +1,299 @@
 package dev.visualengine.gpu;
 
-import dev.visualengine.model.Settings;
-import dev.visualengine.time.Playback;
-import dev.visualengine.simulation.Simulation;
 import static org.lwjgl.opengl.GL43C.*;
 
+import dev.visualengine.model.Settings;
+import dev.visualengine.simulation.Simulation;
+import dev.visualengine.time.Playback;
+
 public final class Renderer implements AutoCloseable {
-    private Program material,finish,bloom;
-    private final ShaderSources sources;
-    private Settings compiledSettings=new Settings();
-    private final int vao;
-    private Texture scene,glow,marks;
-    private Simulation simulation;
-    private final GpuTimer timer=new GpuTimer();
-    public Renderer(ShaderSources sources) {
-        this.sources=sources;vao=glGenVertexArrays();glBindVertexArray(vao);
-        try{reload();}catch(RuntimeException e){close();throw e;}
+  private Program material, finish, bloom;
+  private final ShaderSources sources;
+  private Settings compiledSettings = new Settings();
+  private final int vao;
+  private Texture scene, glow, marks;
+  private Texture reference;
+  private Simulation simulation;
+  private final GpuTimer timer = new GpuTimer();
+  private final GpuTimer tickTimer = new GpuTimer();
+
+  public Renderer(ShaderSources sources) {
+    this.sources = sources;
+    vao = glGenVertexArrays();
+    glBindVertexArray(vao);
+    try {
+      reload();
+    } catch (RuntimeException e) {
+      close();
+      throw e;
     }
-    public void reload() {
-        Program m=null,f=null,b=null;
-        try {
-            String vertex=sources.read("render/fullscreen.vert");
-            m=new Program(vertex,materialSource(compiledSettings));m.require("viewport","seed","scale");
-            f=new Program(vertex,sources.read("post/finish.frag"));f.require("scene","exposure");
-            b=new Program(vertex,sources.read("post/bloom.frag"));b.require("scene");
-            if(simulation!=null)simulation.reload();
-        }catch(RuntimeException e){if(m!=null)m.close();if(f!=null)f.close();if(b!=null)b.close();throw e;}
-        if(material!=null)material.close();if(finish!=null)finish.close();if(bloom!=null)bloom.close();material=m;finish=f;bloom=b;
+  }
+
+  public void reload() {
+    Program m = null, f = null, b = null;
+    try {
+      String vertex = sources.read("render/fullscreen.vert");
+      m = new Program(vertex, materialSource(compiledSettings));
+      m.require("viewport", "seed", "scale");
+      f = new Program(vertex, sources.read("post/finish.frag"));
+      f.require("scene", "exposure");
+      b = new Program(vertex, sources.read("post/bloom.frag"));
+      b.require("scene");
+      if (simulation != null) simulation.reload();
+    } catch (RuntimeException e) {
+      if (m != null) m.close();
+      if (f != null) f.close();
+      if (b != null) b.close();
+      throw e;
     }
-    private String materialSource(Settings settings) {
-        String function="float customField(vec2 p){return 0.;}\n";String gradient=null;
-        if(settings.recipe==Settings.Recipe.CUSTOM) {
-            if(settings.graphEnabled)function=dev.visualengine.authoring.GraphCompiler.compile(settings.graph).function();
-            else {
-                var compiled=dev.visualengine.authoring.Formula.compile(settings.expression);
-                if(compiled.root().type()!=dev.visualengine.authoring.Formula.Type.FLOAT)throw new IllegalArgumentException("Material formulas must return a scalar");
-                function="float customField(vec2 p){return "+compiled.expression()+";}\n";gradient=compiled.gradient();
-            }
-        }
-        function+="vec2 customGradient(vec2 p){"+(gradient!=null?"return "+gradient+";":
-            "float e=max(1e-4,scale/viewport.y);return vec2(customField(p+vec2(e,0))-customField(p-vec2(e,0)),customField(p+vec2(0,e))-customField(p-vec2(0,e)))/(2.*e);")+"}\n";
-        return sources.read("render/material.frag").replace("#define recipe 0","#define recipe "+settings.recipe.ordinal()).replace("// @CUSTOM_FIELD@",function);
+    if (material != null) material.close();
+    if (finish != null) finish.close();
+    if (bloom != null) bloom.close();
+    material = m;
+    finish = f;
+    bloom = b;
+  }
+
+  private String materialSource(Settings settings) {
+    String function = "float customField(vec2 p){return 0.;}\n";
+    String gradient = null;
+    if (settings.recipe == Settings.Recipe.CUSTOM) {
+      if (settings.graphEnabled)
+        function = dev.visualengine.authoring.GraphCompiler.compile(settings.graph).function();
+      else {
+        var compiled = dev.visualengine.authoring.Formula.compile(settings.expression);
+        if (compiled.root().type() != dev.visualengine.authoring.Formula.Type.FLOAT)
+          throw new IllegalArgumentException("Material formulas must return a scalar");
+        function = "float customField(vec2 p){return " + compiled.expression() + ";}\n";
+        gradient = compiled.gradient();
+      }
     }
-    private boolean structureChanged(Settings s) {
-        if(compiledSettings.recipe!=s.recipe)return true;
-        if(s.recipe!=Settings.Recipe.CUSTOM)return false;
-        return compiledSettings.graphEnabled!=s.graphEnabled||!java.util.Objects.equals(compiledSettings.expression,s.expression)
-            ||s.graphEnabled&&(!java.util.Objects.equals(compiledSettings.graph.nodes,s.graph.nodes)||!java.util.Objects.equals(compiledSettings.graph.output,s.graph.output));
+    function +=
+        "vec2 customGradient(vec2 p){"
+            + (gradient != null
+                ? "return " + gradient + ";"
+                : "float e=max(1e-4,scale/viewport.y);return"
+                      + " vec2(customField(p+vec2(e,0))-customField(p-vec2(e,0)),customField(p+vec2(0,e))-customField(p-vec2(0,e)))/(2.*e);")
+            + "}\n";
+    return sources
+        .read("render/material.frag")
+        .replace("#define recipe 0", "#define recipe " + settings.recipe.ordinal())
+        .replace("// @CUSTOM_FIELD@", function);
+  }
+
+  private boolean structureChanged(Settings s) {
+    if (compiledSettings.recipe != s.recipe) return true;
+    if (s.recipe != Settings.Recipe.CUSTOM) return false;
+    return compiledSettings.graphEnabled != s.graphEnabled
+        || !java.util.Objects.equals(compiledSettings.expression, s.expression)
+        || s.graphEnabled
+            && (!java.util.Objects.equals(compiledSettings.graph.nodes, s.graph.nodes)
+                || !java.util.Objects.equals(compiledSettings.graph.output, s.graph.output));
+  }
+
+  public void configure(Settings settings) {
+    settings.validate();
+    Budget.require(
+        Budget.persistent(settings)
+            + (scene == null ? 0 : scene.bytes() + glow.bytes())
+            + (reference == null ? 0 : reference.bytes()));
+    Program candidateMaterial = null;
+    Simulation candidate = null;
+    Texture nextMarks = null;
+    try {
+      if (structureChanged(settings)) {
+        candidateMaterial =
+            new Program(sources.read("render/fullscreen.vert"), materialSource(settings));
+        candidateMaterial.require("viewport", "scale");
+      }
+      if (simulation == null
+          || simulation.grid != settings.grid
+          || simulation.particles.count != settings.particles
+          || simulation.history.layers != settings.historyLayers) {
+        candidate = new Simulation(sources, settings);
+        nextMarks = new Texture(settings.grid, settings.grid, GL_RGBA16F);
+      }
+    } catch (RuntimeException e) {
+      if (candidateMaterial != null) candidateMaterial.close();
+      if (candidate != null) candidate.close();
+      if (nextMarks != null) nextMarks.close();
+      throw e;
     }
-    public void configure(Settings settings) {
-        settings.validate();Program candidateMaterial=null;Simulation candidate=null;Texture nextMarks=null;
-        try {
-            if(structureChanged(settings)){candidateMaterial=new Program(sources.read("render/fullscreen.vert"),materialSource(settings));candidateMaterial.require("viewport","scale");}
-            if(simulation==null||simulation.grid!=settings.grid||simulation.particles.count!=settings.particles||simulation.history.layers!=settings.historyLayers) {
-                candidate=new Simulation(sources,settings);nextMarks=new Texture(settings.grid,settings.grid,GL_RGBA16F);
-            }
-        }catch(RuntimeException e){if(candidateMaterial!=null)candidateMaterial.close();if(candidate!=null)candidate.close();if(nextMarks!=null)nextMarks.close();throw e;}
-        if(candidate!=null){if(simulation!=null)simulation.close();if(marks!=null)marks.close();simulation=candidate;marks=nextMarks;}
-        if(candidateMaterial!=null){material.close();material=candidateMaterial;compiledSettings=settings.copy();}
+    if (candidate != null) {
+      if (simulation != null) simulation.close();
+      if (marks != null) marks.close();
+      simulation = candidate;
+      marks = nextMarks;
     }
-    public void reset(Settings settings){configure(settings);simulation.reset();marks.clear(0,0,0,0);}
-    public void tick(Settings s,double time,double aspect,double x,double y,boolean brush) {
-        configure(s);simulation.update(s,time,aspect,x,y,brush);
-        if(s.feedbackEnabled||needsHistory(s)&&Math.round(time/Playback.DT)%8==0) {
-            marks.target();material.use();uniforms(material,s,time,(int)(marks.height*aspect),marks.height,x,y,brush);
-            simulation.materialUniforms(material,s);material.i("feedbackEnabled",0);material.i("pigmentEnabled",s.pigmentEnabled?1:0);simulation.bind();triangle();
-            simulation.visual(s,marks,time,aspect);
-            if(needsHistory(s))simulation.history.capture(s.feedbackEnabled?simulation.feedback.read():marks,Math.round(time/Playback.DT));
-        }
+    if (candidateMaterial != null) {
+      material.close();
+      material = candidateMaterial;
+      compiledSettings = settings.copy();
     }
-    private static boolean needsHistory(Settings s){return s.recipe==Settings.Recipe.TIME_EXCAVATION||s.recipe==Settings.Recipe.TEMPORAL_PAINTING||s.debug==9;}
-    private void ensureOutput(int w,int h) {
-        if(scene!=null&&scene.width==w&&scene.height==h)return;
-        Texture a=null,b=null;
-        try{a=new Texture(w,h,GL_RGBA16F);b=new Texture(Math.max(1,w/4),Math.max(1,h/4),GL_RGBA16F);}
-        catch(RuntimeException e){if(a!=null)a.close();if(b!=null)b.close();throw e;}
-        if(scene!=null)scene.close();if(glow!=null)glow.close();scene=a;glow=b;
+  }
+
+  public void reset(Settings settings) {
+    configure(settings);
+    simulation.reset();
+    marks.clear(0, 0, 0, 0);
+  }
+
+  public void tick(Settings s, double time, double aspect, double x, double y, boolean brush) {
+    configure(s);
+    tickTimer.begin();
+    simulation.update(s, time, aspect, x, y, brush);
+    if (s.feedbackEnabled || needsHistory(s) && Math.round(time / Playback.DT) % 8 == 0) {
+      marks.target();
+      material.use();
+      uniforms(material, s, time, (int) (marks.height * aspect), marks.height, x, y, brush);
+      simulation.materialUniforms(material, s);
+      material.i("feedbackEnabled", 0);
+      material.i("pigmentEnabled", s.pigmentEnabled ? 1 : 0);
+      simulation.bind();
+      triangle();
+      simulation.visual(s, marks, time, aspect);
+      if (needsHistory(s))
+        simulation.history.capture(
+            s.feedbackEnabled ? simulation.feedback.read() : marks, Math.round(time / Playback.DT));
     }
-    private void triangle(){glBindVertexArray(vao);glDrawArrays(GL_TRIANGLES,0,3);}
-    public void render(Settings s,double time,int w,int h,double x,double y,boolean brush) {
-        configure(s);ensureOutput(Math.max(1,(int)(w*s.displayScale)),Math.max(1,(int)(h*s.displayScale)));timer.begin();
-        scene.target();glDisable(GL_FRAMEBUFFER_SRGB);glDisable(GL_BLEND);
-        material.use();uniforms(material,s,time,w,h,x,y,brush);
-        simulation.materialUniforms(material,s);material.i("feedbackEnabled",s.feedbackEnabled&&!s.graphEnabled?1:0);material.i("pigmentEnabled",s.pigmentEnabled?1:0);simulation.bind();triangle();
-        glow.target();bloom.use();scene.bind(0);triangle();
-        glBindFramebuffer(GL_FRAMEBUFFER,0);glViewport(0,0,w,h);finish.use();scene.bind(0);glow.bind(1);
-        finish.f("exposure",s.get("exposure"));finish.f("bloom",s.get("bloom"));finish.i("debugView",s.debug);triangle();timer.end();
+    tickTimer.end();
+  }
+
+  private static boolean needsHistory(Settings s) {
+    return s.recipe == Settings.Recipe.TIME_EXCAVATION
+        || s.recipe == Settings.Recipe.TEMPORAL_PAINTING
+        || s.debug == 9;
+  }
+
+  private void ensureOutput(int w, int h) {
+    if (scene != null && scene.width == w && scene.height == h) return;
+    Budget.require(
+        simulation.bytes()
+            + marks.bytes()
+            + Budget.display(w, h)
+            + (reference == null ? 0 : reference.bytes()));
+    Texture a = null, b = null;
+    try {
+      a = new Texture(w, h, GL_RGBA16F);
+      b = new Texture(Math.max(1, w / 4), Math.max(1, h / 4), GL_RGBA16F);
+      a.clamp();
+      b.clamp();
+    } catch (RuntimeException e) {
+      if (a != null) a.close();
+      if (b != null) b.close();
+      throw e;
     }
-    public double gpuMilliseconds(){return timer.milliseconds();}
-    public long bytes(){return (scene==null?0:scene.bytes()+glow.bytes())+(simulation==null?0:simulation.bytes()+marks.bytes());}
-    public static void uniforms(Program p,Settings s,double time,int w,int h,double x,double y,boolean brush) {
-        p.v2("viewport",w,h);p.ui("seed",(int)(s.seed^(s.seed>>>32)));
-        double a=s.loopSeconds>0?time*Math.PI*2/s.loopSeconds:s.motionClock;
-        double b=s.loopSeconds>0?a*2:s.motionClock*.37;
-        p.v2("motionPhase",Math.IEEEremainder(a,Math.PI*2),Math.IEEEremainder(b,Math.PI*2));
-        p.f("colorPhase",Math.IEEEremainder(s.loopSeconds>0?a:s.colorClock,Math.PI*2));p.f("time",time);
-        p.i("tileMode",s.tileMode?1:0);p.i("tilePreview",s.tilePreview?1:0);
-        p.i("recipe",s.recipe.ordinal());p.i("paletteIndex",s.palette);p.i("debugView",s.debug);
-        p.v4("pointer",x,y,s.get("radius"),brush?1:0);s.values.forEach(p::f);
+    if (scene != null) scene.close();
+    if (glow != null) glow.close();
+    scene = a;
+    glow = b;
+  }
+
+  private void triangle() {
+    glBindVertexArray(vao);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+  }
+
+  public void render(Settings s, double time, int w, int h, double x, double y, boolean brush) {
+    configure(s);
+    ensureOutput(Math.max(1, (int) (w * s.displayScale)), Math.max(1, (int) (h * s.displayScale)));
+    timer.begin();
+    scene.target();
+    glDisable(GL_FRAMEBUFFER_SRGB);
+    glDisable(GL_BLEND);
+    material.use();
+    uniforms(material, s, time, w, h, x, y, brush);
+    simulation.materialUniforms(material, s);
+    material.i("feedbackEnabled", s.feedbackEnabled && !s.graphEnabled ? 1 : 0);
+    material.i("pigmentEnabled", s.pigmentEnabled ? 1 : 0);
+    simulation.bind();
+    triangle();
+    glow.target();
+    bloom.use();
+    scene.bind(0);
+    triangle();
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, w, h);
+    finish.use();
+    scene.bind(0);
+    glow.bind(1);
+    finish.f("exposure", s.get("exposure"));
+    finish.f("bloom", s.get("bloom"));
+    finish.i("debugView", s.debug);
+    finish.i("compareReference", reference == null ? 0 : 1);
+    if (reference != null) reference.bind(2);
+    else scene.bind(2);
+    triangle();
+    timer.end();
+  }
+
+  public double gpuMilliseconds() {
+    return timer.milliseconds();
+  }
+
+  public double tickMilliseconds() {
+    return tickTimer.milliseconds();
+  }
+
+  public Simulation diagnostics() {
+    return simulation;
+  }
+
+  public long bytes() {
+    return (scene == null ? 0 : scene.bytes() + glow.bytes())
+        + (simulation == null ? 0 : simulation.bytes() + marks.bytes())
+        + (reference == null ? 0 : reference.bytes());
+  }
+
+  public void freezeFinished(int width, int height) {
+    Budget.require(
+        bytes() - (reference == null ? 0 : reference.bytes()) + (long) width * height * 4);
+    Texture next = new Texture(width, height, GL_RGBA8);
+    next.clamp();
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+    glBindTexture(GL_TEXTURE_2D, next.id);
+    glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
+    if (reference != null) reference.close();
+    reference = next;
+  }
+
+  public void clearReference() {
+    if (reference != null) {
+      reference.close();
+      reference = null;
     }
-    @Override public void close() {
-        if(material!=null)material.close();if(finish!=null)finish.close();if(bloom!=null)bloom.close();
-        if(simulation!=null)simulation.close();if(marks!=null)marks.close();if(scene!=null)scene.close();if(glow!=null)glow.close();
-        timer.close();glDeleteVertexArrays(vao);
-    }
+  }
+
+  public static void uniforms(
+      Program p, Settings s, double time, int w, int h, double x, double y, boolean brush) {
+    p.v2("viewport", w, h);
+    p.ui("seed", (int) dev.visualengine.time.Seeds.derive(s.seed, "field", "root"));
+    double a = s.loopSeconds > 0 ? time * Math.PI * 2 / s.loopSeconds : s.motionClock;
+    double b = s.loopSeconds > 0 ? a * 2 : s.motionClock * .37;
+    p.v2("motionPhase", Math.IEEEremainder(a, Math.PI * 2), Math.IEEEremainder(b, Math.PI * 2));
+    p.f("colorPhase", Math.IEEEremainder(s.loopSeconds > 0 ? a : s.colorClock, Math.PI * 2));
+    p.f("time", time);
+    p.i("tileMode", s.tileMode ? 1 : 0);
+    p.i("tilePreview", s.tilePreview ? 1 : 0);
+    p.i("recipe", s.recipe.ordinal());
+    p.i("paletteIndex", s.palette);
+    p.i("debugView", s.debug);
+    p.v4("pointer", x, y, s.get("radius"), brush ? 1 : 0);
+    s.values.forEach(p::f);
+  }
+
+  @Override
+  public void close() {
+    if (material != null) material.close();
+    if (finish != null) finish.close();
+    if (bloom != null) bloom.close();
+    if (simulation != null) simulation.close();
+    if (marks != null) marks.close();
+    if (scene != null) scene.close();
+    if (glow != null) glow.close();
+    if (reference != null) reference.close();
+    timer.close();
+    tickTimer.close();
+    glDeleteVertexArrays(vao);
+  }
 }

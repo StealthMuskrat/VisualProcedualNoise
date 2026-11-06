@@ -13,7 +13,9 @@ void main() {
     if(any(greaterThanEqual(pixel,extent)))return;
     vec2 p=((vec2(pixel)+.5)/vec2(extent)*2.-1.)*vec2(aspect,1.);
     if(initialize!=0) {
-        vec2 q=fract((p+2.)*3.)-.5;
+        uint h=hashCell(ivec3(floor((p+2.)*3.),0));
+        vec2 offset=(vec2(float(h&65535u),float(h>>16))/65535.-.5)*.35;
+        vec2 q=fract((p+2.)*3.)-.5-offset;
         float b=smoothstep(.14,.07,length(q))*.65;
         imageStore(nextState,pixel,vec4(1.-b*.5,b,0,0));return;
     }

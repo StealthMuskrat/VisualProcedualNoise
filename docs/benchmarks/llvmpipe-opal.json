@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 3,
+  "engineVersion": "0.1.0",
+  "algorithmRevision": "gradient-v1-simulation-v2",
+  "rootSeed": "173496285120",
+  "statePolicy": "restart",
+  "referenceTick": 0,
+  "fixedTickSeconds": 0.008333333333333333,
+  "settings": {
+    "name": "Liquid Opal",
+    "recipe": "LIQUID_OPAL",
+    "palette": 0,
+    "debug": 0,
+    "grid": 65,
+    "particles": 16384,
+    "historyLayers": 8,
+    "speed": 1.0,
+    "displayScale": 1.0,
+    "loopSeconds": 0.0,
+    "tileMode": false,
+    "tilePreview": false,
+    "modulations": [],
+    "paused": false,
+    "feedbackEnabled": false,
+    "pigmentEnabled": false,
+    "reactionEnabled": false,
+    "particlesEnabled": false,
+    "graphEnabled": false,
+    "graph": {
+      "id": "local.graph",
+      "version": "1.0.0",
+      "output": "field",
+      "nodes": [
+        {
+          "id": "field",
+          "kind": "FORMULA",
+          "inputs": [],
+          "expression": "sin(length(p) * frequency - phase)",
+          "x": 70.0,
+          "y": 70.0,
+          "bypass": false,
+          "group": "",
+          "comment": "Radial field"
+        }
+      ]
+    },
+    "expression": "0.6 * noise3d(vec3(p * frequency, t * drift)) + 0.4 * sin(p.x * stripeRate + phase)",
+    "values": {
+      "scale": 2.4,
+      "warp": 0.65,
+      "detail": 0.25,
+      "motion": 0.22,
+      "colorRate": 0.06,
+      "height": 0.45,
+      "exposure": 1.1,
+      "bloom": 0.15,
+      "flow": 0.35,
+      "decay": 0.12,
+      "injection": 2.0,
+      "feed": 0.0367,
+      "kill": 0.0649,
+      "feedback": 0.65,
+      "radius": 0.12,
+      "role": 0.0,
+      "historyMix": 0.35,
+      "frequency": 2.0,
+      "drift": 0.2,
+      "stripeRate": 4.0,
+      "agitation": 0.5
+    },
+    "locks": []
+  },
+  "referenceMotionClock": 0.0,
+  "referenceColorClock": 0.0,
+  "device": "Mesa / llvmpipe (LLVM 20.1.2, 256 bits) / 4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2",
+  "width": 320,
+  "height": 200,
+  "allocatedBytes": 1744288,
+  "warmupFrames": 30,
+  "samples": 34,
+  "cpuMeasurement": "poll-to-swap frame CPU wall time; headless swap interval zero",
+  "gpuMeasurement": "delayed nonblocking elapsed queries; rendering and complete fixed-tick workload measured separately; latest available query sampled per frame",
+  "cpuFrameMs": {
+    "p50": 38.708466,
+    "p95": 61.652784,
+    "p99": 74.298187
+  },
+  "gpuRenderMs": {
+    "p50": 36.36941,
+    "p95": 60.805599,
+    "p99": 71.064737
+  },
+  "gpuTickMs": {
+    "p50": 2.7E-5,
+    "p95": 3.7E-5,
+    "p99": 6.2E-5
+  }
+}
