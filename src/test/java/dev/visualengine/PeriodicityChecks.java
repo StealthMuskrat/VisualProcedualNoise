@@ -78,6 +78,7 @@ public final class PeriodicityChecks {
         Periodicity.requireSize(new CaptureSize(2048, 2048)).width() == 2048,
         "inspection maximum pixel budget accepted");
     Settings settings = new Settings();
+    settings.seed = Long.MIN_VALUE;
     settings.debug = 8;
     settings.tilePreview = true;
     settings.displayScale = .5;
@@ -113,7 +114,9 @@ public final class PeriodicityChecks {
     var report = Periodicity.analyze(context, first, first);
     var json = Periodicity.document(context, report);
     check(
-        !json.get("controlsWithinTolerance").getAsBoolean()
+        json.get("rootSeed").getAsString().equals(Long.toString(Long.MIN_VALUE))
+            && !json.getAsJsonObject("renderSettings").has("seed")
+            && !json.get("controlsWithinTolerance").getAsBoolean()
             && json.getAsJsonObject("renderSettings").get("debug").getAsInt() == 0
             && !json.getAsJsonObject("renderSettings").get("tilePreview").getAsBoolean()
             && json.getAsJsonObject("renderSettings").get("displayScale").getAsDouble() == 1

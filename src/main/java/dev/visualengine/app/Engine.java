@@ -4,6 +4,7 @@ import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL43C.*;
 
 import dev.visualengine.export.Capture;
+import dev.visualengine.export.Periodicity;
 import dev.visualengine.export.TextureMap;
 import dev.visualengine.gpu.*;
 import dev.visualengine.model.PresetMorph;
@@ -46,6 +47,9 @@ public final class Engine implements AutoCloseable {
   private Path capture;
   private Command.Still stillCapture;
   private Command.MapExport mapExport;
+  private Command.Inspection inspectionRequest;
+  private final java.util.concurrent.atomic.AtomicBoolean inspectionBusy =
+      new java.util.concurrent.atomic.AtomicBoolean();
   private final java.util.concurrent.atomic.AtomicBoolean mapBusy =
       new java.util.concurrent.atomic.AtomicBoolean();
   private Path checkpointSave;
@@ -258,6 +262,13 @@ public final class Engine implements AutoCloseable {
         saveCheckpoint(checkpointSave, false);
         checkpointSave = null;
       }
+      if (inspectionRequest != null) {
+        inspect(inspectionRequest, false);
+        inspectionRequest = null;
+      }
+      if (options.inspection != null && rendered + 1 == options.frames)
+        inspect(
+            new Command.Inspection(options.inspection, options.inspectionSize), options.headless);
       if (bookmark != null) {
         saveDiscovery(bookmark, false);
         bookmark = null;
@@ -377,6 +388,14 @@ public final class Engine implements AutoCloseable {
     boolean resetBefore = reset;
     try {
       switch (c.type()) {
+        case "inspect" -> {
+          var request = (Command.Inspection) c.value();
+          Periodicity.requireSize(request.size());
+          if (inspectionRequest != null || inspectionBusy.get())
+            status("Wait for the current inspection");
+          else inspectionRequest = request;
+          return;
+        }
         case "morphCapture" -> {
           morph.capture((PresetMorph.Slot) c.value(), settings);
           refreshMorph();
@@ -811,7 +830,10 @@ public final class Engine implements AutoCloseable {
   }
 
   private void refreshMorph() {
-    if (controls != null) controls.showMorph(morph.view(settings));
+    if (controls != null) {
+      controls.showMorph(morph.view(settings));
+      controls.showInspectionSettings(settings);
+    }
   }
 
   private void restoreCheckpoint(CheckpointIO.Snapshot snapshot) {
@@ -986,6 +1008,70 @@ public final class Engine implements AutoCloseable {
       mapBusy.set(false);
       if (options.headless) throw e;
       status("Map export failed: " + e.getMessage());
+    }
+  }
+
+  private void inspect(Command.Inspection request, boolean offline) {
+    if (!inspectionBusy.compareAndSet(false, true)) {
+      status("Wait for the current inspection");
+      return;
+    }
+    try {
+      Periodicity.requireSize(request.size());
+      if (!offline && io.getQueue().remainingCapacity() == 0) {
+        inspectionBusy.set(false);
+        status("File queue full; wait before inspecting");
+        return;
+      }
+      var active = signals.frame(settings);
+      double seconds = clock.seconds();
+      var frame =
+          new Periodicity.Frame(
+              settings,
+              active,
+              clock.tick(),
+              seconds,
+              device,
+              renderer.programSignature(),
+              renderedPointer.x(),
+              renderedPointer.y(),
+              renderedPointer.brush());
+      var first =
+          renderer.captureInspection(
+              active,
+              seconds,
+              request.size(),
+              renderedPointer.x(),
+              renderedPointer.y(),
+              renderedPointer.brush());
+      var endpoint =
+          Periodicity.sampleLoop(active)
+              ? renderer.captureInspection(
+                  active,
+                  seconds + active.loopSeconds,
+                  request.size(),
+                  renderedPointer.x(),
+                  renderedPointer.y(),
+                  renderedPointer.brush())
+              : null;
+      IOAction write =
+          () -> {
+            try {
+              var report = Periodicity.analyze(frame, first, endpoint);
+              Periodicity.write(request.path(), frame, report);
+              if (controls != null)
+                controls.showInspection(report, Periodicity.preview(first), frame.tick());
+              status("Inspection saved: " + request.path());
+            } finally {
+              inspectionBusy.set(false);
+            }
+          };
+      if (offline) enqueueIOBlocking(write);
+      else if (!enqueueIO(write)) inspectionBusy.set(false);
+    } catch (RuntimeException e) {
+      inspectionBusy.set(false);
+      if (options.headless) throw e;
+      status("Inspection failed: " + e.getMessage());
     }
   }
 

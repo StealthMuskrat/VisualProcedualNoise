@@ -58,7 +58,7 @@ public final class Periodicity {
           maximumNormalizedControlDelta <= CONTROL_TOLERANCE
               ? "Resolved controls are within target tolerance."
               : "Resolved controls differ from targets; endpoint test holds resolved values"
-                    + " fixed.");
+                  + " fixed.");
     }
   }
 
@@ -131,9 +131,9 @@ public final class Periodicity {
             temporal,
             loop
                 ? "Rendered endpoints of the configured analytic period at fixed resolved controls"
-                      + " and pointer; no simulation or smoothing advancement."
+                    + " and pointer; no simulation or smoothing advancement."
                 : "No analytic loop period is configured; future persistent state is not"
-                      + " inferred."),
+                    + " inferred."),
         controlDelta(frame.target(), frame.resolved()));
   }
 
@@ -221,14 +221,13 @@ public final class Periodicity {
         frame.target().tileMode
             ? "analytic spatial domain mapping enabled"
             : "unrestricted spatial domain");
-    json.addProperty(
-        "endpointSeconds",
-        report.loop().sampled() ? frame.seconds() + report.loop().seconds() : frame.seconds());
+    if (report.loop().sampled())
+      json.addProperty("endpointSeconds", frame.seconds() + report.loop().seconds());
     Settings render = frame.resolved().copy();
     render.debug = 0;
     render.tilePreview = false;
     render.displayScale = 1;
-    json.add("renderSettings", PresetIO.JSON.toJsonTree(render));
+    json.add("renderSettings", PresetIO.document(render, frame.tick()).getAsJsonObject("settings"));
     json.addProperty("includesReference", false);
     json.addProperty("includesDiagnostics", false);
     json.addProperty("includesWrapPreview", false);

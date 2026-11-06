@@ -201,6 +201,7 @@ public final class CoreChecks {
     count += GaborChecks.run();
     count += DirectionalChecks.run();
     count += PeriodicityChecks.run();
+    count += InspectionUiChecks.run();
     System.out.println("Core checks passed: " + count);
   }
 

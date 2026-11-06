@@ -7,6 +7,8 @@ public final class Options {
   public int frames, width = 1280, height = 800;
   public Path shaders, preset, capture;
   public Path effect;
+  public Path inspection;
+  public dev.visualengine.export.CaptureSize inspectionSize;
   public Path morphTarget;
   public Double morphAmount;
   public Path discoveries;
@@ -42,6 +44,11 @@ public final class Options {
         case "--shaders" -> o.shaders = Path.of(args[++i]);
         case "--preset" -> o.preset = Path.of(args[++i]);
         case "--effect" -> o.effect = Path.of(args[++i]);
+        case "--inspect" -> o.inspection = Path.of(args[++i]);
+        case "--inspect-size" ->
+            o.inspectionSize =
+                dev.visualengine.export.Periodicity.requireSize(
+                    dev.visualengine.export.CaptureSize.parse(args[++i]));
         case "--morph-target" -> o.morphTarget = Path.of(args[++i]);
         case "--morph-amount" -> o.morphAmount = Double.valueOf(args[++i]);
         case "--discoveries" -> o.discoveries = Path.of(args[++i]);
@@ -119,6 +126,13 @@ public final class Options {
       throw new IllegalArgumentException("--bookmark requires --frames > 0");
     if (o.captureSize != null && o.capture == null)
       throw new IllegalArgumentException("--capture-size requires --capture");
+    if (o.inspection != null || o.inspectionSize != null) {
+      if (o.inspection == null || o.frames == 0)
+        throw new IllegalArgumentException(
+            "Inspection requires --inspect FILE.json and --frames > 0");
+      if (o.inspectionSize == null)
+        o.inspectionSize = new dev.visualengine.export.CaptureSize(512, 512);
+    }
     if (o.replay != null && o.quality != null)
       throw new IllegalArgumentException("Replay uses its recorded quality; omit --quality");
     if (o.morphTarget != null || o.morphAmount != null) {

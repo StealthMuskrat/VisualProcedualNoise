@@ -30,6 +30,7 @@ public final class ControlPanel implements AutoCloseable {
   private ModulationPanel modulation;
   private DiscoveryPanel discoveries;
   private MorphPanel morph;
+  private InspectionPanel inspection;
   private boolean syncing;
 
   public ControlPanel(Consumer<Command> submit, Settings initial, Path data) {
@@ -276,6 +277,20 @@ public final class ControlPanel implements AutoCloseable {
                         new Command.MorphLoad(slot, chooser.getSelectedFile().toPath())));
             });
     tabs.addTab("Morph", new JScrollPane(morph));
+    inspection =
+        new InspectionPanel(
+            size -> {
+              JFileChooser chooser = new JFileChooser(data.toFile());
+              chooser.setSelectedFile(data.resolve("inspection.json").toFile());
+              if (chooser.showSaveDialog(frame) == JFileChooser.APPROVE_OPTION)
+                submit.accept(
+                    new Command(
+                        "inspect",
+                        new Command.Inspection(chooser.getSelectedFile().toPath(), size)));
+            },
+            this::showStatus,
+            s);
+    tabs.addTab("Inspect", new JScrollPane(inspection));
     tabs.addChangeListener(e -> {
       if (tabs.getSelectedComponent() == discoveries) discoveries.open();
     });
@@ -375,6 +390,7 @@ public final class ControlPanel implements AutoCloseable {
       if (authoring != null) authoring.sync(s);
       if (effectControls != null) effectControls.sync(s);
       if (modulation != null) modulation.sync(s);
+      if (inspection != null) inspection.sync(s);
       flags.get("tileMode").setSelected(s.tileMode);
       flags.get("tilePreview").setSelected(s.tilePreview);
     } finally {
@@ -389,6 +405,18 @@ public final class ControlPanel implements AutoCloseable {
 
   public void showStatus(String text) {
     SwingUtilities.invokeLater(() -> status.setText(text.replace('\n', ' ')));
+  }
+
+  public void showInspection(
+      dev.visualengine.export.Periodicity.Report report,
+      java.awt.image.BufferedImage preview,
+      long tick) {
+    SwingUtilities.invokeLater(() -> inspection.showReport(report, preview, tick));
+  }
+
+  public void showInspectionSettings(Settings settings) {
+    Settings copy = settings.copy();
+    SwingUtilities.invokeLater(() -> inspection.sync(copy));
   }
 
   public void showMorph(dev.visualengine.model.PresetMorph.View view) {

@@ -34,6 +34,8 @@ public final class Main {
               + "--morph-target preset.json --morph-amount 0..1 (compatible numeric controls)\n"
               + "--headless --frames N --size WIDTHxHEIGHT --capture artwork.png\n"
               + "--capture-size WIDTHxHEIGHT (full-resolution still; window stays unchanged)\n"
+              + "--inspect report.json --inspect-size WIDTHxHEIGHT (seam/loop measurements, max 4"
+              + " MP)\n"
               + "--map height|normal|mask|linear-color|emission --map-output FILE.png\n"
               + "--map-size WIDTHxHEIGHT --map-range MIN:MAX (height/color/emission only)\n"
               + "--export DIRECTORY --frames N --fps 24|30|60|120 --warmup TICKS\n"

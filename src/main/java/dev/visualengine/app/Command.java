@@ -49,6 +49,8 @@ public record Command(String type, Object value) {
 
   public record Still(java.nio.file.Path path, dev.visualengine.export.CaptureSize size) {}
 
+  public record Inspection(java.nio.file.Path path, dev.visualengine.export.CaptureSize size) {}
+
   public record MapExport(
       java.nio.file.Path path,
       dev.visualengine.export.TextureMap.Kind kind,
