@@ -7,14 +7,16 @@ Recorded November 6 2026. Source implementation includes the renderer, sixteen r
 | Check | Result |
 | --- | --- |
 | Java 25 compilation and distribution assembly | Passed with Temurin 25.0.5+8 |
-| JVM contracts | 305 passed: parsing, types, bounds, graph cycles and pruning, seeds, preset migrations, modulation, clocks, replay, custom controls, hashes, typed groups, checkpoint archives, quality profiles, still metadata, discovery integrity/branching/gallery, 16-bit map encoding/metadata/UI, morph compatibility/interpolation/phases/command ordering/UI, directional formulas/effects/hashes/UI, seam/loop metrics/context/UI and memory limits |
-| OpenGL contracts | 131 passed on Mesa llvmpipe, OpenGL 4.5 core, Mesa 25.2.8, LLVM 20.1.2 |
+| JVM contracts | 336 passed: parsing, types, bounds, graph cycles and pruning, seeds, preset migrations, modulation, clocks, replay, custom controls, hashes, typed groups, checkpoint archives, quality profiles, still metadata, discovery integrity/branching/gallery, 16-bit map encoding/metadata/UI, morph compatibility/interpolation/phases/command ordering/UI, directional formulas/effects/hashes/UI, seam/loop metrics/context/UI, benchmark attribution/percentiles/workloads/CLI and memory limits |
+| OpenGL contracts | 137 passed on Mesa llvmpipe, OpenGL 4.5 core, Mesa 25.2.8, LLVM 20.1.2 |
 | Authoring behavior | Custom values change the image without relinking; encapsulating seeded graphs preserves their rendered output; typed group expressions link and render |
 | Recipe coverage | All sixteen recipes compiled and rendered; generated gallery includes PNGs and complete sidecars |
 | Directional fields | 4096 raw probe and 6144 material-height samples matched an independent double-precision reference within 0.0002; orientation response, half-turn symmetry, seeded repeatability, boundary continuity, clamps, nonfinite inputs and finite normal export passed |
 | Directional effects | Fibers/weave rendered distinct images; numeric controls retained the linked program; formula/graph field agreement and analytic-loop endpoints passed. Installed manifests preserved image/state through map capture and exact replay/checkpoint continuation through a smoothed bandwidth edit |
 | Seam and loop inspection | Encoded-channel statistics, edge axes and neighboring-step counts, endpoint eligibility, resolution limits, lossless metadata and actual UI actions passed. GPU sampling excluded overlays and preserved framebuffer, state bytes, reference, clocks and allocation; matching analytic endpoints retained visible animation between them |
 | Installed inspection workflow | Inspection preserved exact live image, GPU state, clocks, replay cursor, unfinished smoothing and pointer input. Spatial reports avoided future-state inference; analytic endpoints matched within one display level. Oversized requests and failed atomic publication preserved existing destinations |
+| Benchmark timing | Completed queries retained unique sequence/frame attribution; delayed warmup data stayed outside measured samples; coverage accounted for render frames and individual ticks. Instrumentation preserved image, phase clocks, metadata and every GPU state byte |
+| Installed benchmark suite | Two seven-case smoke suites reproduced workload identities, PNG bytes, state hashes, clocks and simulation metadata. The saved history replay reproduced ordinary engine image/state; single-scene benchmarking preserved output and state. Existing destinations were rejected and missing-shader runs created no staged output |
 | Reset and pause | Repeated reset at the same seed/tick reproduced the image; repeated rendering without ticks preserved it |
 | Pigment transport | Constant-field preservation and positive-flow impulse direction passed on a 65×65 grid |
 | Reaction diffusion | Concentrations remained finite and bounded over 256 ticks at three exposed coefficient combinations; initialization responds to root seed |
@@ -49,6 +51,22 @@ The [raw version 0.1 baseline](benchmarks/llvmpipe-opal.json) records liquid opa
 
 The device is a CPU software renderer. These values do not establish Windows hardware requirements or satisfy the 1080p/60 fps target. The analytic preset schedules no persistent update, so its near-zero tick query measures an empty workload. No optimization speedup is claimed.
 
+### Version 0.10 software quick suite
+
+The [raw quick-suite report](benchmarks/llvmpipe-0.10-quick.json) records seven isolated workloads at 320×200, 129×129 simulation grid, 4096 particle allocation and eight history layers. Each case uses thirty warmup frames and sixty measured frames, ending at tick 180. The run used Mesa llvmpipe 25.2.8 / LLVM 20.1.2 with two software-renderer threads and Java 25.0.5, without a concurrent test or build job. Every case collected sixty render queries and 120 individual-tick queries, with no measured skips.
+
+| Case | CPU frame p50 / p95 (ms) | GPU render p50 (ms) | GPU individual tick p50 (ms) |
+| --- | --- | --- | --- |
+| Opal | 19.58 / 48.16 | 19.24 | 0.000025 |
+| Contours | 16.07 / 20.47 | 16.14 | 0.000025 |
+| Nested warps | 47.78 / 84.86 | 47.40 | 0.000026 |
+| Pigment | 27.63 / 33.53 | 25.18 | 0.815 |
+| Reaction | 22.92 / 33.29 | 17.20 | 2.538 |
+| Particles | 29.67 / 34.73 | 16.02 | 6.483 |
+| History | 29.10 / 36.60 | 16.99 | 5.607 |
+
+These are software-renderer development measurements. Analytic cases have no persistent update, so their near-zero tick scopes measure empty bookkeeping. Tick/query scopes are individual ticks, while CPU frames schedule two; percentile values must not be added to infer a frame percentile. This is a baseline, not an optimization speedup or Windows performance result. See [benchmark profiles and measurement contracts](BENCHMARKS.md). Legacy version 0.1 GPU summaries use different collection/percentile semantics and are not directly comparable.
+
 ## Windows and release acceptance
 
 GitHub verification is introduced after the implementation batches. The Windows job checks JVM contracts, builds an x64 app image with its own Java runtime and verifies packaged resources/native loading. A hosted runner does not establish the application's GPU performance or desktop behavior.
@@ -58,6 +76,8 @@ Before public release, run the specification's matrix on physical Windows machin
 The installed Linux script launcher was exercised with replay exports. A native Linux app image was built, but its launcher could not be validated in this sandbox because the process filesystem is unavailable. Linux app images are outside the Windows distribution target.
 
 ## Scope of this release
+
+Version 0.10 adds a [seven-case reproducible benchmark suite](BENCHMARKS.md), pinned smoke/quick/standard profiles, raw frame-attributed query samples, explicit coverage, setup measurements and deterministic image/state outcomes. Ordinary sessions no longer retain unused benchmark sample history. The suite records performance evidence without enforcing CI timing thresholds or claiming hardware targets.
 
 Version 0.9 adds [rendered seam and analytic-loop inspection](INSPECTION.md), including numeric reports, independent-resolution sampling, target/resolved context and a repeated-image preview. It measures encoded pixel samples without automatically certifying seamlessness or predicting future persistent state.
 
