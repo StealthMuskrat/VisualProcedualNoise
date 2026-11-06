@@ -32,6 +32,7 @@ public final class Main {
               + "--expression FORMULA --shaders DIRECTORY\n"
               + "--quality draft|balanced|detailed (applied before --grid override)\n"
               + "--headless --frames N --size WIDTHxHEIGHT --capture artwork.png\n"
+              + "--capture-size WIDTHxHEIGHT (full-resolution still; window stays unchanged)\n"
               + "--export DIRECTORY --frames N --fps 24|30|60|120 --warmup TICKS\n"
               + "--replay take.replay.json --list-recipes\n"
               + "--checkpoint study.vstate --save-checkpoint study.vstate\n"

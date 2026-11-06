@@ -61,6 +61,13 @@ public final class QualityChecks {
       rejected = true;
     }
     check(rejected, "checkpoint rejects quality override");
+    rejected = false;
+    try {
+      Options.parse(new String[] {"--replay", "take.json", "--quality", "draft"});
+    } catch (IllegalArgumentException e) {
+      rejected = true;
+    }
+    check(rejected, "recorded quality cannot be silently overridden or ignored");
     return count;
   }
 }

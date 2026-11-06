@@ -11,6 +11,13 @@ import javax.imageio.ImageIO;
 import org.lwjgl.system.MemoryUtil;
 
 public final class Capture {
+  public record View(int renderWidth, int renderHeight, boolean includesReference) {
+    public View {
+      if (renderWidth < 1 || renderHeight < 1 || renderWidth > 8192 || renderHeight > 8192)
+        throw new IllegalArgumentException("Invalid capture render dimensions");
+    }
+  }
+
   private Capture() {}
 
   /**
@@ -23,6 +30,7 @@ public final class Capture {
     try {
       glPixelStorei(GL_PACK_ALIGNMENT, 1);
       glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+      if (glGetError() != GL_NO_ERROR) throw new IllegalStateException("Artwork readback failed");
       BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
       for (int y = 0; y < height; y++)
         for (int x = 0; x < width; x++) {
@@ -43,6 +51,21 @@ public final class Capture {
   public static void write(
       Path path, BufferedImage image, Settings settings, long tick, String device)
       throws IOException {
+    write(
+        path,
+        image,
+        settings,
+        tick,
+        device,
+        new View(
+            Math.max(1, (int) (image.getWidth() * settings.displayScale)),
+            Math.max(1, (int) (image.getHeight() * settings.displayScale)),
+            false));
+  }
+
+  public static void write(
+      Path path, BufferedImage image, Settings settings, long tick, String device, View view)
+      throws IOException {
     Path target = path.toAbsolutePath();
     Files.createDirectories(target.getParent());
     Path temp = Files.createTempFile(target.getParent(), ".capture-", ".png");
@@ -58,6 +81,15 @@ public final class Capture {
     doc.addProperty("captureEncoding", "sRGB SDR opaque RGB top-left origin");
     doc.addProperty("width", image.getWidth());
     doc.addProperty("height", image.getHeight());
+    doc.addProperty("captureStage", "finished display color before UI");
+    doc.addProperty("captureRenderWidth", view.renderWidth());
+    doc.addProperty("captureRenderHeight", view.renderHeight());
+    doc.addProperty("captureIncludesReference", view.includesReference());
+    doc.addProperty(
+        "qualityProfile",
+        dev.visualengine.model.QualityProfile.matching(settings)
+            .map(p -> p.name().toLowerCase(java.util.Locale.ROOT))
+            .orElse("custom"));
     PresetIO.atomicWrite(Path.of(target + ".json"), PresetIO.JSON.toJson(doc));
   }
 }

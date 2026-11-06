@@ -38,6 +38,7 @@ public final class Engine implements AutoCloseable {
   private final dev.visualengine.export.Benchmark benchmark =
       new dev.visualengine.export.Benchmark();
   private Path capture;
+  private Command.Still stillCapture;
   private Path checkpointSave;
   private final java.util.concurrent.atomic.AtomicBoolean checkpointBusy =
       new java.util.concurrent.atomic.AtomicBoolean();
@@ -211,7 +212,12 @@ public final class Engine implements AutoCloseable {
         capture(capture);
         capture = null;
       }
-      if (options.capture != null && rendered + 1 == options.frames) capture(options.capture);
+      if (stillCapture != null) {
+        captureStill(stillCapture, false);
+        stillCapture = null;
+      }
+      if (options.capture != null && rendered + 1 == options.frames)
+        captureStill(new Command.Still(options.capture, options.captureSize), options.headless);
       if (checkpointSave != null) {
         saveCheckpoint(checkpointSave, false);
         checkpointSave = null;
@@ -389,10 +395,6 @@ public final class Engine implements AutoCloseable {
           reset |= profile.resets(settings);
           settings = candidate;
           if (controls != null) controls.sync(settings);
-          status(
-              profile
-                  + " quality applied"
-                  + (reset ? "; simulation restarted" : "; state preserved"));
         }
         case "particles" -> {
           settings.particles = ((Number) c.value()).intValue();
@@ -456,7 +458,12 @@ public final class Engine implements AutoCloseable {
         }
         case "undo" -> {
           if (!undo.isEmpty()) {
-            settings = undo.pop();
+            Settings restored = undo.pop();
+            reset |=
+                restored.grid != settings.grid
+                    || restored.particles != settings.particles
+                    || restored.historyLayers != settings.historyLayers;
+            settings = restored;
             if (controls != null) controls.sync(settings);
           }
         }
@@ -525,6 +532,10 @@ public final class Engine implements AutoCloseable {
           return;
         }
         case "capture" -> capture = (Path) c.value();
+        case "captureStill" -> {
+          stillCapture = (Command.Still) c.value();
+          return;
+        }
         case "freeze" -> freeze = true;
         case "clearReference" -> renderer.clearReference();
         case "bookmark" ->
@@ -603,7 +614,18 @@ public final class Engine implements AutoCloseable {
       settings.validate();
       dev.visualengine.authoring.EffectPackage.resolveResources(settings);
       renderer.configure(settings);
-      if (settings.paused || c.type().equals("effectControls")) signals.snap(settings);
+      if (c.type().equals("quality")) {
+        boolean stoppedReplay = playbackLog != null;
+        playbackLog = null;
+        replayBrush = false;
+        status(
+            c.value()
+                + " quality applied"
+                + (reset ? "; simulation restarted" : "; state preserved")
+                + (stoppedReplay ? "; replay stopped" : ""));
+      }
+      if (settings.paused && !c.type().equals("quality") || c.type().equals("effectControls"))
+        signals.snap(settings);
       if (recording
           && recordingLog != null
           && !c.type().equals("record")
@@ -735,15 +757,46 @@ public final class Engine implements AutoCloseable {
   }
 
   private void capture(Path path, boolean offline) {
-    var image = Capture.read(window.width, window.height);
-    Settings snapshot = settings.copy();
+    capture(path, offline, null);
+  }
+
+  private void captureStill(Command.Still request, boolean offline) {
+    try {
+      capture(request.path(), offline, request.size());
+    } catch (RuntimeException e) {
+      if (options.headless) throw e;
+      status("Capture failed: " + e.getMessage());
+    }
+  }
+
+  private void capture(Path path, boolean offline, dev.visualengine.export.CaptureSize size) {
+    if (!offline && io.getQueue().remainingCapacity() == 0) {
+      status("File queue is full; wait for the current capture");
+      return;
+    }
     var active = signals.frame(settings);
+    var image =
+        size == null
+            ? Capture.read(window.width, window.height)
+            : renderer.captureStill(
+                active,
+                clock.seconds(),
+                size,
+                renderedPointer.x(),
+                renderedPointer.y(),
+                renderedPointer.brush());
+    var view =
+        new Capture.View(
+            size == null ? Math.max(1, (int) (window.width * active.displayScale)) : size.width(),
+            size == null ? Math.max(1, (int) (window.height * active.displayScale)) : size.height(),
+            renderer.hasReference());
+    Settings snapshot = settings.copy();
     snapshot.motionClock = active.motionClock;
     snapshot.colorClock = active.colorClock;
     long tick = clock.tick();
     IOAction write =
         () -> {
-          Capture.write(path, image, snapshot, tick, device);
+          Capture.write(path, image, snapshot, tick, device, view);
           status("Captured " + path);
         };
     if (offline) enqueueIOBlocking(write);

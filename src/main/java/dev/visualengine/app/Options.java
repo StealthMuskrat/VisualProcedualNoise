@@ -7,6 +7,7 @@ public final class Options {
   public int frames, width = 1280, height = 800;
   public Path shaders, preset, capture;
   public Path effect;
+  public dev.visualengine.export.CaptureSize captureSize;
   public Path checkpoint, saveCheckpoint;
   public boolean explicitSize;
   public String expression;
@@ -26,9 +27,9 @@ public final class Options {
         case "--frames" -> o.frames = Integer.parseInt(args[++i]);
         case "--size" -> {
           o.explicitSize = true;
-          String[] size = args[++i].split("x");
-          o.width = Integer.parseInt(size[0]);
-          o.height = Integer.parseInt(size[1]);
+          var size = dev.visualengine.export.CaptureSize.parse(args[++i]);
+          o.width = size.width();
+          o.height = size.height();
         }
         case "--shaders" -> o.shaders = Path.of(args[++i]);
         case "--preset" -> o.preset = Path.of(args[++i]);
@@ -36,6 +37,8 @@ public final class Options {
         case "--checkpoint" -> o.checkpoint = Path.of(args[++i]);
         case "--save-checkpoint" -> o.saveCheckpoint = Path.of(args[++i]);
         case "--capture" -> o.capture = Path.of(args[++i]);
+        case "--capture-size" ->
+            o.captureSize = dev.visualengine.export.CaptureSize.parse(args[++i]);
         case "--expression" -> {
           o.expression = args[++i];
           o.recipe = dev.visualengine.model.Settings.Recipe.CUSTOM;
@@ -86,6 +89,10 @@ public final class Options {
             || o.expression != null))
       throw new IllegalArgumentException(
           "Use --checkpoint without preset, effect, replay, or scene overrides");
+    if (o.captureSize != null && o.capture == null)
+      throw new IllegalArgumentException("--capture-size requires --capture");
+    if (o.replay != null && o.quality != null)
+      throw new IllegalArgumentException("Replay uses its recorded quality; omit --quality");
     return o;
   }
 }

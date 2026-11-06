@@ -259,6 +259,7 @@ public final class GpuChecks {
           history.count() == 3 && Arrays.stream(history.ticks()).max().orElse(-1) == 64,
           "history ring bounds and timestamps");
       checkpoints();
+      stillCaptures();
       reloadFailure(window);
       check(glGetError() == GL_NO_ERROR, "no final GL error");
       System.out.println("GPU checks passed: " + count + " | " + glGetString(GL_RENDERER));
@@ -383,6 +384,88 @@ public final class GpuChecks {
   private static boolean allFiniteRange(float[] values, float minimum, float maximum) {
     for (float x : values) if (!Float.isFinite(x) || x < minimum || x > maximum) return false;
     return true;
+  }
+
+  private static void stillCaptures() {
+    Settings s = settings();
+    Recipes.apply(s, Settings.Recipe.TIME_EXCAVATION);
+    s.feedbackEnabled =
+        s.pigmentEnabled = s.reactionEnabled = s.particlesEnabled = s.graphEnabled = true;
+    try (Renderer r = new Renderer(new ShaderSources(null))) {
+      r.reset(s);
+      Settings active = evolve(r, s, 32);
+      double time = 32 * Playback.DT;
+      r.render(active, time, 96, 64, .2, -.1, true);
+      int[] full = image();
+      GpuSnapshot before = r.snapshot(s, 32);
+      long memory = r.bytes();
+      var size = new dev.visualengine.export.CaptureSize(96, 64);
+      var still = r.captureStill(active, time, size, .2, -.1, true);
+      check(
+          Arrays.equals(full, still.getRGB(0, 0, 96, 64, null, 0, 96)),
+          "offscreen still matches finished viewport color and orientation");
+      check(Arrays.equals(full, image()), "offscreen still preserves the live framebuffer");
+      int[] viewport = new int[4];
+      glGetIntegerv(GL_VIEWPORT, viewport);
+      check(
+          Arrays.equals(viewport, new int[] {0, 0, 96, 64})
+              && glGetInteger(GL_DRAW_FRAMEBUFFER_BINDING) == 0,
+          "still restores live viewport and framebuffer binding");
+      active.displayScale = .5;
+      s.displayScale = .5;
+      r.render(active, time, 96, 64, .2, -.1, true);
+      int[] low = image();
+      memory = r.bytes();
+      still = r.captureStill(active, time, size, .2, -.1, true);
+      check(
+          Arrays.equals(full, still.getRGB(0, 0, 96, 64, null, 0, 96)),
+          "chosen-size still ignores reduced live display scale");
+      check(
+          Arrays.equals(low, image()) && memory == r.bytes(),
+          "full-quality capture preserves reduced live output and allocation");
+      var odd =
+          r.captureStill(
+              active, time, new dev.visualengine.export.CaptureSize(191, 127), .2, -.1, true);
+      check(
+          odd.getWidth() == 191
+              && odd.getHeight() == 127
+              && Arrays.stream(odd.getRGB(0, 0, 191, 127, null, 0, 191)).distinct().count() > 100,
+          "independent odd-sized and different-aspect still is fully rendered");
+      check(
+          sameBlobs(before, r.snapshot(s, 32)) && memory == r.bytes(),
+          "repeated stills preserve every persistent resource and free temporary storage");
+      r.freezeFinished(96, 64);
+      still = r.captureStill(active, time, size, .2, -.1, true);
+      check(
+          r.hasReference() && still.getRGB(12, 32) == low[12 + 32 * 96],
+          "still includes frozen A/B reference consistently");
+      GpuSnapshot ref = r.snapshot(s, 32);
+      var again = r.captureStill(active, time, size, .2, -.1, true);
+      check(
+          Arrays.equals(
+                  still.getRGB(0, 0, 96, 64, null, 0, 96), again.getRGB(0, 0, 96, 64, null, 0, 96))
+              && sameBlobs(ref, r.snapshot(s, 32)),
+          "paused still with reference is repeatable without ticks");
+    }
+    // A valid output extent can still exceed the budget alongside an expensive live simulation.
+    s.grid = 1024;
+    s.particles = 262144;
+    s.historyLayers = 32;
+    try (Renderer r = new Renderer(new ShaderSources(null))) {
+      r.reset(s);
+      r.render(s, 0, 96, 64, 0, 0, false);
+      long memory = r.bytes();
+      int[] before = image();
+      boolean rejected = false;
+      try {
+        r.captureStill(s, 0, new dev.visualengine.export.CaptureSize(8192, 4096), 0, 0, false);
+      } catch (IllegalArgumentException e) {
+        rejected = true;
+      }
+      check(
+          rejected && memory == r.bytes() && Arrays.equals(before, image()),
+          "over-budget still rejects before changing live resources or image");
+    }
   }
 
   private static void transportDirection(Simulation sim, Settings s) {

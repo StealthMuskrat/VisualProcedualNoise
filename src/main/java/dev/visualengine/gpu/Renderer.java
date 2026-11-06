@@ -208,6 +208,21 @@ public final class Renderer implements AutoCloseable {
     configure(s);
     ensureOutput(Math.max(1, (int) (w * s.displayScale)), Math.max(1, (int) (h * s.displayScale)));
     timer.begin();
+    renderInto(s, time, w, h, x, y, brush, scene, glow, 0);
+    timer.end();
+  }
+
+  private void renderInto(
+      Settings s,
+      double time,
+      int w,
+      int h,
+      double x,
+      double y,
+      boolean brush,
+      Texture scene,
+      Texture glow,
+      int framebuffer) {
     scene.target();
     glDisable(GL_FRAMEBUFFER_SRGB);
     glDisable(GL_BLEND);
@@ -222,7 +237,7 @@ public final class Renderer implements AutoCloseable {
     bloom.use();
     scene.bind(0);
     triangle();
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
     glViewport(0, 0, w, h);
     finish.use();
     scene.bind(0);
@@ -234,7 +249,52 @@ public final class Renderer implements AutoCloseable {
     if (reference != null) reference.bind(2);
     else scene.bind(2);
     triangle();
-    timer.end();
+  }
+
+  /**
+   * A full-resolution finished still. Never ticks or reallocates persistent or live output state.
+   */
+  public java.awt.image.BufferedImage captureStill(
+      Settings s,
+      double time,
+      dev.visualengine.export.CaptureSize size,
+      double x,
+      double y,
+      boolean brush) {
+    s.validate();
+    if (simulation == null
+        || simulation.grid != s.grid
+        || simulation.particles.count != s.particles
+        || simulation.history.layers != s.historyLayers
+        || structureChanged(s))
+      throw new IllegalArgumentException("Configure the current scene before capturing");
+    int w = size.width(), h = size.height();
+    Budget.require(bytes() + Budget.display(w, h) + (long) w * h * 4);
+    int read = glGetInteger(GL_READ_FRAMEBUFFER_BINDING),
+        draw = glGetInteger(GL_DRAW_FRAMEBUFFER_BINDING);
+    int[] viewport = new int[4];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    Texture a = null, b = null, output = null;
+    try {
+      a = new Texture(w, h, GL_RGBA16F);
+      b = new Texture(Math.max(1, w / 4), Math.max(1, h / 4), GL_RGBA16F);
+      a.clamp();
+      b.clamp();
+      output = new Texture(w, h, GL_RGBA8);
+      renderInto(s, time, w, h, x, y, brush, a, b, output.framebuffer);
+      return dev.visualengine.export.Capture.read(w, h);
+    } finally {
+      if (output != null) output.close();
+      if (b != null) b.close();
+      if (a != null) a.close();
+      glBindFramebuffer(GL_READ_FRAMEBUFFER, read);
+      glBindFramebuffer(GL_DRAW_FRAMEBUFFER, draw);
+      glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+    }
+  }
+
+  public boolean hasReference() {
+    return reference != null;
   }
 
   public double gpuMilliseconds() {

@@ -151,6 +151,7 @@ public final class ControlPanel implements AutoCloseable {
     quality.add(qualityPreview);
     quality.add(profileBudget);
     quality.add(new JLabel("Changing grid, particle count or history restarts state."));
+    quality.add(new JLabel("Applying a quality preset stops an active replay."));
     JButton applyQuality = new JButton("Apply quality preset");
     applyQuality.addActionListener(
         e -> submit.accept(new Command("quality", qualityProfile.getSelectedItem())));
@@ -199,6 +200,32 @@ public final class ControlPanel implements AutoCloseable {
     fileButton(files, "Save full simulation checkpoint", "saveCheckpoint", "study.vstate", true);
     fileButton(files, "Resume full simulation checkpoint", "loadCheckpoint", "study.vstate", false);
     fileButton(files, "Capture artwork PNG", "capture", "artwork.png", true);
+    files.add(new JLabel("Still output width and height"));
+    JPanel captureDimensions = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+    JSpinner captureWidth = new JSpinner(new SpinnerNumberModel(1920, 32, 8192, 32));
+    JSpinner captureHeight = new JSpinner(new SpinnerNumberModel(1080, 32, 8192, 32));
+    captureDimensions.add(captureWidth);
+    captureDimensions.add(new JLabel("×"));
+    captureDimensions.add(captureHeight);
+    files.add(captureDimensions);
+    JButton captureSized = new JButton("Capture at chosen resolution");
+    captureSized.addActionListener(e -> {
+      try {
+        var size =
+            new dev.visualengine.export.CaptureSize(
+                (int) captureWidth.getValue(), (int) captureHeight.getValue());
+        JFileChooser chooser = new JFileChooser(data.toFile());
+        chooser.setSelectedFile(data.resolve("artwork.png").toFile());
+        if (chooser.showSaveDialog(frame) == JFileChooser.APPROVE_OPTION)
+          submit.accept(
+              new Command(
+                  "captureStill", new Command.Still(chooser.getSelectedFile().toPath(), size)));
+      } catch (IllegalArgumentException ex) {
+        showStatus(ex.getMessage());
+      }
+    });
+    files.add(captureSized);
+    files.add(new JLabel("Chosen-size stills render at full quality without advancing time."));
     button(files, "Bookmark discovery (configuration and artwork)", "bookmark");
     button(files, "Freeze A/B reference (left frozen, right live)", "freeze");
     button(files, "Clear A/B reference", "clearReference");
