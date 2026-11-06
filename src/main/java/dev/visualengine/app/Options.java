@@ -1,0 +1,24 @@
+package dev.visualengine.app;
+
+import java.nio.file.Path;
+
+public final class Options {
+    public boolean headless;
+    public int frames,width=1280,height=800;
+    public Path shaders,preset,capture;
+    public static Options parse(String[] args) {
+        Options o=new Options();
+        for(int i=0;i<args.length;i++)switch(args[i]) {
+            case "--headless" -> o.headless=true;
+            case "--frames" -> o.frames=Integer.parseInt(args[++i]);
+            case "--size" -> {String[] size=args[++i].split("x");o.width=Integer.parseInt(size[0]);o.height=Integer.parseInt(size[1]);}
+            case "--shaders" -> o.shaders=Path.of(args[++i]);
+            case "--preset" -> o.preset=Path.of(args[++i]);
+            case "--capture" -> o.capture=Path.of(args[++i]);
+            default -> throw new IllegalArgumentException("Unknown option: "+args[i]);
+        }
+        if(o.width<32||o.height<32||o.width>8192||o.height>8192||o.frames<0||o.headless&&o.frames==0)
+            throw new IllegalArgumentException("Use dimensions 32..8192 and --frames > 0 for headless mode");
+        return o;
+    }
+}

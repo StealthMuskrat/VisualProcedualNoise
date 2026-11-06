@@ -12,6 +12,7 @@ def nativePlatform = providers.gradleProperty('nativePlatform').getOrElse(
         System.getProperty('os.name').toLowerCase().contains('win') ? 'natives-windows' :
         System.getProperty('os.name').toLowerCase().contains('mac') ? 'natives-macos' : 'natives-linux')
 dependencies {
+    implementation 'com.google.code.gson:gson:2.13.2'
     implementation platform("org.lwjgl:lwjgl-bom:$lwjglVersion")
     ['lwjgl', 'lwjgl-glfw', 'lwjgl-opengl'].each {
         implementation "org.lwjgl:$it"
