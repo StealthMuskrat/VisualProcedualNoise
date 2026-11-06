@@ -18,6 +18,7 @@ public final class ControlPanel implements AutoCloseable {
     private final Map<String,JCheckBox> flags=new HashMap<>();
     private JComboBox<Settings.Recipe> recipes;
     private JComboBox<String> palette,debug;
+    private AuthoringPanel authoring;
     private boolean syncing;
     public ControlPanel(Consumer<Command> submit,Settings initial,Path data) {
         this.submit=submit; this.data=data;
@@ -60,9 +61,12 @@ public final class ControlPanel implements AutoCloseable {
         fileButton(files,"Save configuration preset","save","study.json",true);
         fileButton(files,"Load configuration preset (restart)","load","study.json",false);
         fileButton(files,"Capture artwork PNG","capture","artwork.png",true);
+        fileButton(files,"Import reusable effect","importEffect","effect.json",false);
+        fileButton(files,"Export reusable effect","exportEffect","effect.json",true);
         files.add(new JLabel("Presets restart state. Captures record the reference tick."));
         JTabbedPane tabs=new JTabbedPane();tabs.addTab("Scene",new JScrollPane(scene));tabs.addTab("Controls",new JScrollPane(params));tabs.addTab("Quality",new JScrollPane(quality));tabs.addTab("Files",new JScrollPane(files));
-        frame.add(tabs,BorderLayout.CENTER);frame.add(status,BorderLayout.SOUTH);frame.setSize(480,820);frame.setLocationByPlatform(true);syncNow(s);frame.setVisible(true);
+        authoring=new AuthoringPanel(submit,s);tabs.addTab("Authoring",authoring);
+        frame.add(tabs,BorderLayout.CENTER);frame.add(status,BorderLayout.SOUTH);frame.setSize(540,860);frame.setLocationByPlatform(true);syncNow(s);frame.setVisible(true);
     }
     private void spinner(JPanel p,String label,String id,Number initial,Comparable<?> min,Comparable<?> max,Number step) {
         p.add(new JLabel(label)); JSpinner control=new JSpinner(new SpinnerNumberModel(initial,(Comparable)min,(Comparable)max,step));
@@ -79,6 +83,7 @@ public final class ControlPanel implements AutoCloseable {
             for(var p:Settings.PARAMETERS)sliders.get(p.id()).setValue((int)Math.round(1000*(s.get(p.id())-p.minimum())/(p.maximum()-p.minimum())));
             flags.get("feedbackEnabled").setSelected(s.feedbackEnabled);flags.get("pigmentEnabled").setSelected(s.pigmentEnabled);
             flags.get("reactionEnabled").setSelected(s.reactionEnabled);flags.get("particlesEnabled").setSelected(s.particlesEnabled);
+            if(authoring!=null)authoring.sync(s);
         } finally { syncing=false; }
     }
     public void sync(Settings s) { Settings copy=s.copy();SwingUtilities.invokeLater(()->syncNow(copy)); }

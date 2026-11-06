@@ -12,7 +12,7 @@ public final class PresetIO {
     private PresetIO() {}
     public static JsonObject document(Settings settings,long tick) {
         settings.validate(); JsonObject root=new JsonObject();
-        root.addProperty("schemaVersion",1); root.addProperty("engineVersion","0.1.0");
+        root.addProperty("schemaVersion",2); root.addProperty("engineVersion","0.1.0");
         root.addProperty("algorithmRevision",REVISION); root.addProperty("rootSeed",Long.toString(settings.seed));
         root.addProperty("statePolicy","restart"); root.addProperty("referenceTick",tick);
         root.addProperty("fixedTickSeconds",1./120); root.add("settings",JSON.toJsonTree(settings));
@@ -23,11 +23,12 @@ public final class PresetIO {
     public static Settings parse(String text) {
         if(text.length()>1_048_576)throw new IllegalArgumentException("Preset exceeds 1 MiB");
         JsonObject root=JsonParser.parseString(text).getAsJsonObject();
-        if(!root.has("schemaVersion") || root.get("schemaVersion").getAsInt()!=1)
-            throw new IllegalArgumentException("Unsupported preset schema. This build accepts version 1.");
+        if(!root.has("schemaVersion") || root.get("schemaVersion").getAsInt()<1 || root.get("schemaVersion").getAsInt()>2)
+            throw new IllegalArgumentException("Unsupported preset schema. This build accepts versions 1 and 2.");
         if(!root.has("algorithmRevision") || !REVISION.equals(root.get("algorithmRevision").getAsString()))
             throw new IllegalArgumentException("Preset algorithm revision is incompatible; explicit migration is required.");
         Settings s=JSON.fromJson(root.get("settings"),Settings.class);
+        if(root.get("schemaVersion").getAsInt()==1)for(String id:List.of("frequency","drift","stripeRate"))s.values.putIfAbsent(id,new Settings().get(id));
         s.seed=Long.parseLong(root.get("rootSeed").getAsString());
         if(s.values==null || s.locks==null || s.recipe==null || s.expression==null || s.name==null
                 || !s.values.keySet().equals(new Settings().values.keySet())) throw new IllegalArgumentException("Preset controls are incomplete");

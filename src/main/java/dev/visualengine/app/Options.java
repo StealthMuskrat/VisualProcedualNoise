@@ -6,6 +6,7 @@ public final class Options {
     public boolean headless;
     public int frames,width=1280,height=800;
     public Path shaders,preset,capture;
+    public String expression;
     public dev.visualengine.model.Settings.Recipe recipe;
     public Integer grid;
     public Long seed;
@@ -18,6 +19,7 @@ public final class Options {
             case "--shaders" -> o.shaders=Path.of(args[++i]);
             case "--preset" -> o.preset=Path.of(args[++i]);
             case "--capture" -> o.capture=Path.of(args[++i]);
+            case "--expression" -> {o.expression=args[++i];o.recipe=dev.visualengine.model.Settings.Recipe.CUSTOM;}
             case "--recipe" -> o.recipe=dev.visualengine.model.Settings.Recipe.valueOf(args[++i].toUpperCase(java.util.Locale.ROOT).replace('-','_'));
             case "--grid" -> o.grid=Integer.parseInt(args[++i]);
             case "--seed" -> o.seed=Long.parseLong(args[++i]);

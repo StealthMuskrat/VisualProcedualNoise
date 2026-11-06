@@ -29,6 +29,9 @@ public final class Settings {
         new Parameter("radius", "Brush radius (domain)", .02, .5, .12, "Interaction"),
         new Parameter("role", "Generator role exchange", 0, 1, 0, "Composition"),
         new Parameter("historyMix", "History excavation", 0, .9, .35, "Composition")
+        ,new Parameter("frequency", "Formula frequency", .1, 20, 2, "Authoring")
+        ,new Parameter("drift", "Formula drift", 0, 2, .2, "Authoring")
+        ,new Parameter("stripeRate", "Formula stripe rate", .1, 30, 4, "Authoring")
     );
     public enum Recipe { LIQUID_OPAL, LIVING_CONTOURS, COSMIC_SILK, ALIEN_ECOSYSTEM, KALEIDOSCOPE,
         TEMPORAL_PAINTING, INTERNAL_WEATHER, PATTERNS_WITHIN_PATTERNS, TIME_EXCAVATION,
@@ -39,6 +42,8 @@ public final class Settings {
     public int palette = 0, debug = 0, grid = 256, particles = 16384, historyLayers = 8;
     public double speed = 1, displayScale = 1;
     public boolean paused, feedbackEnabled, pigmentEnabled, reactionEnabled, particlesEnabled;
+    public boolean graphEnabled;
+    public dev.visualengine.authoring.EffectGraph graph=new dev.visualengine.authoring.EffectGraph();
     public String expression = "0.6 * noise3d(vec3(p * frequency, t * drift)) + 0.4 * sin(p.x * stripeRate + phase)";
     public final LinkedHashMap<String, Double> values = new LinkedHashMap<>();
     public final Set<String> locks = new HashSet<>();
@@ -55,6 +60,7 @@ public final class Settings {
         s.particles=particles; s.historyLayers=historyLayers; s.speed=speed; s.displayScale=displayScale;
         s.paused=paused; s.feedbackEnabled=feedbackEnabled; s.pigmentEnabled=pigmentEnabled;
         s.reactionEnabled=reactionEnabled; s.particlesEnabled=particlesEnabled; s.expression=expression;
+        s.graphEnabled=graphEnabled;s.graph=graph==null?null:graph.copy();
         s.values.putAll(values); s.locks.addAll(locks); return s;
     }
     public void validate() {

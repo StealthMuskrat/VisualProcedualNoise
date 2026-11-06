@@ -29,3 +29,9 @@ tasks.withType(AbstractArchiveTask).configureEach {
     reproducibleFileOrder = true
 }
 tasks.named('wrapper') { gradleVersion = '9.1.0'; distributionType = Wrapper.DistributionType.BIN }
+tasks.register('coreCheck', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.visualengine.CoreChecks'
+}
+tasks.named('check') { dependsOn tasks.named('coreCheck') }

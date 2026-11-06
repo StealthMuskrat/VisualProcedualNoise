@@ -8,6 +8,7 @@ import static org.lwjgl.opengl.GL43C.*;
 public final class Renderer implements AutoCloseable {
     private Program material,finish,bloom;
     private final ShaderSources sources;
+    private Settings compiledSettings=new Settings();
     private final int vao;
     private Texture scene,glow,marks;
     private Simulation simulation;
@@ -20,26 +21,48 @@ public final class Renderer implements AutoCloseable {
         Program m=null,f=null,b=null;
         try {
             String vertex=sources.read("render/fullscreen.vert");
-            m=new Program(vertex,sources.read("render/material.frag"));m.require("viewport","seed","scale");
+            m=new Program(vertex,materialSource(compiledSettings));m.require("viewport","seed","scale");
             f=new Program(vertex,sources.read("post/finish.frag"));f.require("scene","exposure");
             b=new Program(vertex,sources.read("post/bloom.frag"));b.require("scene");
             if(simulation!=null)simulation.reload();
         }catch(RuntimeException e){if(m!=null)m.close();if(f!=null)f.close();if(b!=null)b.close();throw e;}
         if(material!=null)material.close();if(finish!=null)finish.close();if(bloom!=null)bloom.close();material=m;finish=f;bloom=b;
     }
-    public void configure(Settings settings) {
-        settings.validate();
-        if(simulation==null||simulation.grid!=settings.grid||simulation.particles.count!=settings.particles||simulation.history.layers!=settings.historyLayers) {
-            Simulation candidate=null;Texture nextMarks=null;
-            try {candidate=new Simulation(sources,settings);nextMarks=new Texture(settings.grid,settings.grid,GL_RGBA16F);}
-            catch(RuntimeException e){if(candidate!=null)candidate.close();if(nextMarks!=null)nextMarks.close();throw e;}
-            if(simulation!=null)simulation.close();if(marks!=null)marks.close();simulation=candidate;marks=nextMarks;
+    private String materialSource(Settings settings) {
+        String function="float customField(vec2 p){return 0.;}\n";String gradient=null;
+        if(settings.recipe==Settings.Recipe.CUSTOM) {
+            if(settings.graphEnabled)function=dev.visualengine.authoring.GraphCompiler.compile(settings.graph).function();
+            else {
+                var compiled=dev.visualengine.authoring.Formula.compile(settings.expression);
+                if(compiled.root().type()!=dev.visualengine.authoring.Formula.Type.FLOAT)throw new IllegalArgumentException("Material formulas must return a scalar");
+                function="float customField(vec2 p){return "+compiled.expression()+";}\n";gradient=compiled.gradient();
+            }
         }
+        function+="vec2 customGradient(vec2 p){"+(gradient!=null?"return "+gradient+";":
+            "float e=max(1e-4,scale/viewport.y);return vec2(customField(p+vec2(e,0))-customField(p-vec2(e,0)),customField(p+vec2(0,e))-customField(p-vec2(0,e)))/(2.*e);")+"}\n";
+        return sources.read("render/material.frag").replace("#define recipe 0","#define recipe "+settings.recipe.ordinal()).replace("// @CUSTOM_FIELD@",function);
+    }
+    private boolean structureChanged(Settings s) {
+        if(compiledSettings.recipe!=s.recipe)return true;
+        if(s.recipe!=Settings.Recipe.CUSTOM)return false;
+        return compiledSettings.graphEnabled!=s.graphEnabled||!java.util.Objects.equals(compiledSettings.expression,s.expression)
+            ||s.graphEnabled&&(!java.util.Objects.equals(compiledSettings.graph.nodes,s.graph.nodes)||!java.util.Objects.equals(compiledSettings.graph.output,s.graph.output));
+    }
+    public void configure(Settings settings) {
+        settings.validate();Program candidateMaterial=null;Simulation candidate=null;Texture nextMarks=null;
+        try {
+            if(structureChanged(settings)){candidateMaterial=new Program(sources.read("render/fullscreen.vert"),materialSource(settings));candidateMaterial.require("viewport","scale");}
+            if(simulation==null||simulation.grid!=settings.grid||simulation.particles.count!=settings.particles||simulation.history.layers!=settings.historyLayers) {
+                candidate=new Simulation(sources,settings);nextMarks=new Texture(settings.grid,settings.grid,GL_RGBA16F);
+            }
+        }catch(RuntimeException e){if(candidateMaterial!=null)candidateMaterial.close();if(candidate!=null)candidate.close();if(nextMarks!=null)nextMarks.close();throw e;}
+        if(candidate!=null){if(simulation!=null)simulation.close();if(marks!=null)marks.close();simulation=candidate;marks=nextMarks;}
+        if(candidateMaterial!=null){material.close();material=candidateMaterial;compiledSettings=settings.copy();}
     }
     public void reset(Settings settings){configure(settings);simulation.reset();marks.clear(0,0,0,0);}
     public void tick(Settings s,double time,double aspect,double x,double y,boolean brush) {
         configure(s);simulation.update(s,time,aspect,x,y,brush);
-        if(s.feedbackEnabled||needsHistory(s)) {
+        if(s.feedbackEnabled||needsHistory(s)&&Math.round(time/Playback.DT)%8==0) {
             marks.target();material.use();uniforms(material,s,time,(int)(marks.height*aspect),marks.height,x,y,brush);
             simulation.materialUniforms(material,s);material.i("feedbackEnabled",0);material.i("pigmentEnabled",s.pigmentEnabled?1:0);simulation.bind();triangle();
             simulation.visual(s,marks,time,aspect);
@@ -59,7 +82,7 @@ public final class Renderer implements AutoCloseable {
         configure(s);ensureOutput(Math.max(1,(int)(w*s.displayScale)),Math.max(1,(int)(h*s.displayScale)));timer.begin();
         scene.target();glDisable(GL_FRAMEBUFFER_SRGB);glDisable(GL_BLEND);
         material.use();uniforms(material,s,time,w,h,x,y,brush);
-        simulation.materialUniforms(material,s);material.i("feedbackEnabled",s.feedbackEnabled?1:0);material.i("pigmentEnabled",s.pigmentEnabled?1:0);simulation.bind();triangle();
+        simulation.materialUniforms(material,s);material.i("feedbackEnabled",s.feedbackEnabled&&!s.graphEnabled?1:0);material.i("pigmentEnabled",s.pigmentEnabled?1:0);simulation.bind();triangle();
         glow.target();bloom.use();scene.bind(0);triangle();
         glBindFramebuffer(GL_FRAMEBUFFER,0);glViewport(0,0,w,h);finish.use();scene.bind(0);glow.bind(1);
         finish.f("exposure",s.get("exposure"));finish.f("bloom",s.get("bloom"));finish.i("debugView",s.debug);triangle();timer.end();

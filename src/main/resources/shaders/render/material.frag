@@ -4,7 +4,9 @@ out vec4 color;
 uniform vec2 viewport,motionPhase;
 uniform uint seed;
 uniform float scale,warp,detail,height,exposure,colorPhase,time,role;
-uniform int recipe,paletteIndex,debugView,feedbackEnabled,pigmentEnabled;
+// Recipe is specialized by the host; numeric controls remain uniforms.
+#define recipe 0
+uniform int paletteIndex,debugView,feedbackEnabled,pigmentEnabled;
 layout(binding=1) uniform sampler2D flowTexture;
 layout(binding=2) uniform sampler2D pigmentTexture;
 layout(binding=3) uniform sampler2D feedbackTexture;
@@ -17,6 +19,9 @@ layout(binding=6) uniform sampler2D ageTexture;
 layout(binding=7) uniform sampler2D trailTexture;
 #include "../common/noise.glsl"
 #include "../common/color.glsl"
+#include "../common/safe.glsl"
+uniform float frequency,drift,stripeRate;
+// @CUSTOM_FIELD@
 float filteredFbm(vec3 p) {
     float sum=0.,a=.5,frequency=1.;
     float footprint=2.*scale/viewport.y*(1.+warp*6.+detail*8.);
@@ -37,6 +42,10 @@ void main() {
     if(recipe==9)p*=vec2(1.+.35*sin(p.y+motionPhase.x),1.+.3*cos(p.x));
     if(recipe==12) {float portal=smoothstep(.62,.58,length(p));p=mix(p,p*2.+vec2(3.,1.),portal);}
     float f=field(p),cell=cellular(p).x;
+#if recipe == 15
+    f=customField(p);
+    if(isnan(f)||isinf(f)){color=vec4(8.,0.,5.,1.);return;}
+#endif
     if(recipe==7)f=field(p+vec2(f,field(p*.4))*1.5);
     if(recipe==13)f=mix(f,cell-.5,.5+.5*sin(motionPhase.y));
     if(recipe==14)f=field(p+vec2(sin(texture(ageTexture,uv).r*.2),cos(texture(ageTexture,uv).r*.2))*.4);
@@ -44,6 +53,9 @@ void main() {
     f=mix(f,cell-.5,role);
     if(recipe==1) { float phase=f*32.; float aa=max(fwidth(phase),.01); f=.8-smoothstep(.08,.08+aa,abs(sin(phase))); }
     vec2 grad=vec2(dFdx(f),dFdy(f))*viewport.y*.35;
+#if recipe == 15
+    grad=customGradient(p)*scale;
+#endif
     vec3 normal=normalize(vec3(-grad*height,1.));
     vec3 light=normalize(vec3(-.4,.6,1.));
     float diffuse=.3+.7*max(dot(normal,light),0.);

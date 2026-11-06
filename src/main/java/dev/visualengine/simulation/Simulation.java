@@ -37,7 +37,7 @@ public final class Simulation implements AutoCloseable {
         closePrograms();flowProgram=next[0];pigmentProgram=next[1];feedbackProgram=next[2];reactionProgram=next[3];ageProgram=next[4];
     }
     public void reset(){flow.clear(0,0,0,0);pigment.clear(0,0,0,0);feedback.clear(0,0,0,0);chemicals.clear(1,0,0,0);age.clear(0,0,0,0);particles.reset();history.reset();chemicalInitialized=false;previousX=previousY=0;}
-    private void dispatch(){glDispatchCompute((grid+7)/8,(grid+7)/8,1);glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT|GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);}
+    private void dispatch(){glDispatchCompute((grid+7)/8,(grid+7)/8,1);glMemoryBarrier(PassScheduler.barrierBits(java.util.EnumSet.of(PassScheduler.Access.SAMPLER,PassScheduler.Access.IMAGE)));}
     public void update(Settings s,double time,double aspect,double x,double y,boolean brush) {
         if(s.pigmentEnabled||s.feedbackEnabled||s.particlesEnabled||s.debug==3||s.recipe==Settings.Recipe.INTERNAL_WEATHER) {
             flowProgram.use();Renderer.uniforms(flowProgram,s,time,grid,grid,x,y,brush);flowProgram.f("aspect",aspect);flow.image(0);dispatch();
@@ -51,7 +51,7 @@ public final class Simulation implements AutoCloseable {
             if(!chemicalInitialized){chemical(s,time,aspect,x,y,false,true);chemical(s,time,aspect,x,y,false,true);chemicalInitialized=true;}
             for(int sub=0;sub<4;sub++)chemical(s,time,aspect,x,y,brush,false);
         }
-        if(s.recipe==Settings.Recipe.LOCAL_CLOCKS||s.debug==7) {
+        if(s.recipe==Settings.Recipe.LOCAL_CLOCKS||s.debug==7||s.graphEnabled) {
             ageProgram.use();Renderer.uniforms(ageProgram,s,time,grid,grid,x,y,brush);ageProgram.f("dt",Playback.DT);ageProgram.f("aspect",aspect);
             age.read().bind(0);age.write().image(0);dispatch();age.swap();
         }

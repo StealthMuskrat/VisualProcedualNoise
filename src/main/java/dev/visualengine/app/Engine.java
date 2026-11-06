@@ -35,7 +35,8 @@ public final class Engine implements AutoCloseable {
         if(options.recipe!=null)dev.visualengine.model.Recipes.apply(settings,options.recipe);
         if(options.grid!=null)settings.grid=options.grid;
         if(options.seed!=null)settings.seed=options.seed;
-        settings.validate();
+        if(options.expression!=null)settings.expression=options.expression;
+        settings.validate();dev.visualengine.authoring.EffectPackage.resolveResources(settings);
         window=new Window(options.width,options.height,options.headless);
         renderer=new Renderer(new ShaderSources(options.shaders));
         renderer.configure(settings);
@@ -130,9 +131,15 @@ public final class Engine implements AutoCloseable {
                 case "load" -> enqueueIO(()->submit(new Command("loaded",PresetIO.load((Path)c.value()))));
                 case "loaded" -> {remember();settings=(Settings)c.value();reset=true;if(controls!=null)controls.sync(settings);status("Preset loaded; state restarted");}
                 case "capture" -> capture=(Path)c.value();
+                case "expression" -> {remember();var f=dev.visualengine.authoring.Formula.compile((String)c.value());if(f.root().type()!=dev.visualengine.authoring.Formula.Type.FLOAT)throw new IllegalArgumentException("Formula output must be scalar");settings.expression=(String)c.value();settings.graphEnabled=false;settings.recipe=Settings.Recipe.CUSTOM;}
+                case "graph" -> {remember();var g=(dev.visualengine.authoring.EffectGraph)c.value();var compiled=dev.visualengine.authoring.GraphCompiler.compile(g);settings.graph=g.copy();settings.graphEnabled=true;settings.recipe=Settings.Recipe.CUSTOM;
+                    if(compiled.resources().contains("previousVisualColor"))settings.feedbackEnabled=true;if(compiled.resources().contains("pigment"))settings.pigmentEnabled=true;}
+                case "importEffect" -> enqueueIO(()->submit(new Command("effectLoaded",dev.visualengine.authoring.EffectPackage.load((Path)c.value()))));
+                case "effectLoaded" -> {remember();((dev.visualengine.authoring.EffectPackage)c.value()).apply(settings);reset=true;if(controls!=null)controls.sync(settings);}
+                case "exportEffect" -> {var effect=new dev.visualengine.authoring.EffectPackage();effect.parameters=new java.util.LinkedHashMap<>(settings.values);effect.expression=settings.expression;effect.graph=settings.graph.copy();effect.authoring=settings.graphEnabled?"graph":"expression";enqueueIO(()->effect.save((Path)c.value()));}
                 default -> throw new IllegalArgumentException("Unknown command "+c.type());
             }
-            settings.validate();renderer.configure(settings);
+            settings.validate();dev.visualengine.authoring.EffectPackage.resolveResources(settings);renderer.configure(settings);
         } catch(Exception e){settings=before;if(controls!=null)controls.sync(settings);System.err.println(e);status(e.getMessage());}
     }
     @FunctionalInterface private interface IOAction {void run() throws Exception;}
