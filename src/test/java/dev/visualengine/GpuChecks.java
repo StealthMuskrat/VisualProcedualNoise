@@ -4,6 +4,8 @@ import static org.lwjgl.opengl.GL43C.*;
 
 import dev.visualengine.authoring.*;
 import dev.visualengine.export.Capture;
+import dev.visualengine.export.CaptureSize;
+import dev.visualengine.export.TextureMap;
 import dev.visualengine.gpu.*;
 import dev.visualengine.model.*;
 import dev.visualengine.platform.Window;
@@ -261,6 +263,7 @@ public final class GpuChecks {
       checkpoints();
       stillCaptures();
       savedReferences();
+      textureMaps();
       reloadFailure(window);
       check(glGetError() == GL_NO_ERROR, "no final GL error");
       System.out.println("GPU checks passed: " + count + " | " + glGetString(GL_RENDERER));
@@ -385,6 +388,188 @@ public final class GpuChecks {
   private static boolean allFiniteRange(float[] values, float minimum, float maximum) {
     for (float x : values) if (!Float.isFinite(x) || x < minimum || x > maximum) return false;
     return true;
+  }
+
+  private static void textureMaps() {
+    Settings s = settings();
+    s.recipe = Settings.Recipe.CUSTOM;
+    s.expression = "p.x";
+    s.set("scale", 1);
+    s.set("height", .5);
+    CaptureSize size = new CaptureSize(96, 64);
+    try (Renderer r = new Renderer(new ShaderSources(null))) {
+      r.reset(s);
+      r.render(s, 0, 96, 64, 0, 0, false);
+      int[] before = image();
+      long memory = r.bytes();
+      int program = r.materialProgramId();
+      var height =
+          r.captureMap(
+              s, 0, TextureMap.Kind.HEIGHT, size, new TextureMap.Range(-1, 1), 0, 0, false);
+      var encoded = TextureMap.encode(height).image().getRaster();
+      double h = (((8.5 / 96) * 2 - 1) * 1.5) * .5;
+      check(
+          Math.abs(encoded.getSample(8, 32, 0) - Math.round((h + 1) * .5 * 65535)) <= 1,
+          "height map exports the known signed plane with declared linear range");
+      var normal =
+          r.captureMap(
+              s, 0, TextureMap.Kind.NORMAL, size, TextureMap.Kind.NORMAL.initialRange, 0, 0, false);
+      var normalImage = TextureMap.encode(normal).image().getRaster();
+      check(
+          Math.abs(
+                      normalImage.getSample(32, 32, 0)
+                          - Math.round((1 - .5 / Math.sqrt(1.25)) * .5 * 65535))
+                  <= 1
+              && normalImage.getSample(32, 32, 1) == 32768
+              && Math.abs(
+                      normalImage.getSample(32, 32, 2)
+                          - Math.round((1 + 1 / Math.sqrt(1.25)) * .5 * 65535))
+                  <= 1,
+          "normal map matches the analytical plane in field-domain units");
+      var mask =
+          TextureMap.encode(
+                  r.captureMap(
+                      s,
+                      0,
+                      TextureMap.Kind.MASK,
+                      size,
+                      TextureMap.Kind.MASK.initialRange,
+                      0,
+                      0,
+                      false))
+              .image()
+              .getRaster();
+      check(
+          mask.getSample(8, 32, 0) == 0 && mask.getSample(88, 32, 0) == 65535,
+          "zero-level mask separates negative and positive field");
+      check(
+          Arrays.equals(before, image()) && r.bytes() == memory && r.materialProgramId() == program,
+          "map output leaves live pixels, allocations and linked program intact");
+      s.expression = "p.y";
+      r.configure(s);
+      var vertical =
+          TextureMap.encode(
+                  r.captureMap(
+                      s, 0, TextureMap.Kind.HEIGHT, size, new TextureMap.Range(-1, 1), 0, 0, false))
+              .image()
+              .getRaster();
+      check(
+          vertical.getSample(32, 0, 0) > vertical.getSample(32, 63, 0),
+          "map image origin is top-left with artistic Y upward");
+      s.set("role", 1);
+      var surface =
+          r.captureMap(
+              s, 0, TextureMap.Kind.HEIGHT, size, TextureMap.Kind.HEIGHT.initialRange, 0, 0, false);
+      var composed =
+          r.captureMap(
+              s, 0, TextureMap.Kind.NORMAL, size, TextureMap.Kind.NORMAL.initialRange, 0, 0, false);
+      ByteBuffer heights = ByteBuffer.wrap(surface.floats()).order(ByteOrder.nativeOrder()),
+          normals = ByteBuffer.wrap(composed.floats()).order(ByteOrder.nativeOrder());
+      int at = 18 * 96 + 16;
+      double base = heights.getFloat(at * 4),
+          dx = (heights.getFloat((at + 1) * 4) - base) * 32,
+          dy = (heights.getFloat((at + 96) * 4) - base) * 32,
+          length = Math.sqrt(1 + dx * dx + dy * dy);
+      check(
+          Math.abs(normals.getFloat(at * 16) + dx / length) < 2e-5
+              && Math.abs(normals.getFloat(at * 16 + 4) + dy / length) < 2e-5,
+          "map normals differentiate the complete role-mixed field");
+      s = settings();
+      Recipes.apply(s, Settings.Recipe.TIME_EXCAVATION);
+      s.feedbackEnabled =
+          s.pigmentEnabled = s.reactionEnabled = s.particlesEnabled = s.graphEnabled = true;
+      r.reset(s);
+      Settings active = evolve(r, s, 48);
+      r.render(active, 48 * Playback.DT, 96, 64, .2, .1, false);
+      GpuSnapshot state = r.snapshot(s, 48);
+      memory = r.bytes();
+      before = image();
+      var color =
+          r.captureMap(
+              active,
+              48 * Playback.DT,
+              TextureMap.Kind.LINEAR_COLOR,
+              size,
+              TextureMap.Kind.LINEAR_COLOR.initialRange,
+              .2,
+              .1,
+              false);
+      var emission =
+          r.captureMap(
+              active,
+              48 * Playback.DT,
+              TextureMap.Kind.EMISSION,
+              size,
+              TextureMap.Kind.EMISSION.initialRange,
+              .2,
+              .1,
+              false);
+      ByteBuffer colors = ByteBuffer.wrap(color.floats()).order(ByteOrder.nativeOrder()),
+          emissions = ByteBuffer.wrap(emission.floats()).order(ByteOrder.nativeOrder());
+      double error = 0;
+      for (int offset = 0; offset < color.floats().length; offset += 16)
+        for (int channel = 0; channel < 3; channel++)
+          error =
+              Math.max(
+                  error,
+                  Math.abs(
+                      emissions.getFloat(offset + channel * 4)
+                          - Math.max(colors.getFloat(offset + channel * 4) - .65f, 0)));
+      check(error < 1e-6, "emission follows the defined unblurred bloom threshold in linear RGB");
+      for (var kind : TextureMap.Kind.values())
+        TextureMap.encode(
+            r.captureMap(
+                active,
+                48 * Playback.DT,
+                kind,
+                new CaptureSize(191, 127),
+                kind.initialRange,
+                .2,
+                .1,
+                false));
+      check(
+          sameBlobs(state, r.snapshot(s, 48))
+              && r.bytes() == memory
+              && Arrays.equals(before, image()),
+          "all odd-sized maps preserve persistent GPU bytes and the live framebuffer");
+      active.debug = 8;
+      active.set("exposure", 4);
+      active.set("bloom", 1);
+      r.render(active, 48 * Playback.DT, 96, 64, .2, .1, false);
+      r.freezeFinished(96, 64);
+      var dataOnly =
+          r.captureMap(
+              active,
+              48 * Playback.DT,
+              TextureMap.Kind.LINEAR_COLOR,
+              size,
+              TextureMap.Kind.LINEAR_COLOR.initialRange,
+              .2,
+              .1,
+              false);
+      check(
+          Arrays.equals(color.floats(), dataOnly.floats()),
+          "linear maps exclude debug display, exposure, bloom and A/B reference");
+      memory = r.bytes();
+      before = image();
+      boolean rejected = false;
+      try {
+        r.captureMap(
+            active,
+            48 * Playback.DT,
+            TextureMap.Kind.NORMAL,
+            new CaptureSize(8192, 4096),
+            TextureMap.Kind.NORMAL.initialRange,
+            0,
+            0,
+            false);
+      } catch (IllegalArgumentException e) {
+        rejected = true;
+      }
+      check(
+          rejected && r.bytes() == memory && Arrays.equals(before, image()),
+          "over-budget map rejects before allocation and leaves view intact");
+    }
   }
 
   private static void savedReferences() {
@@ -593,6 +778,35 @@ public final class GpuChecks {
       check(
           rejected && Arrays.equals(before, image()) && memory == r.bytes(),
           "failed reload preserves image and resource budget");
+      Files.writeString(
+          root.resolve("render/material.frag"),
+          """
+          #version 430 core
+          in vec2 uv; out vec4 color;
+          uniform vec2 viewport; uniform uint seed; uniform float scale;
+          void main(){color=vec4(uv.x+float(seed)*1e-10+viewport.y*.00001+scale*.001,.1,.2,1);}
+          """);
+      r.reload();
+      r.render(s, 0, 96, 64, 0, 0, false);
+      before = image();
+      memory = r.bytes();
+      rejected = false;
+      try {
+        r.captureMap(
+            s,
+            0,
+            TextureMap.Kind.HEIGHT,
+            new CaptureSize(96, 64),
+            TextureMap.Kind.HEIGHT.initialRange,
+            0,
+            0,
+            false);
+      } catch (IllegalArgumentException e) {
+        rejected = true;
+      }
+      check(
+          rejected && Arrays.equals(before, image()) && memory == r.bytes(),
+          "editable shader without the map interface rejects export and preserves live image");
     } finally {
       try (var paths = Files.walk(root)) {
         for (Path p : paths.sorted(Comparator.reverseOrder()).toList()) Files.delete(p);

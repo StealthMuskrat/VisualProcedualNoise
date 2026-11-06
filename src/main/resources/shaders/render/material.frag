@@ -8,6 +8,7 @@ uniform float scale,warp,detail,height,exposure,colorPhase,time,role;
 #define recipe 0
 uniform int paletteIndex,debugView,feedbackEnabled,pigmentEnabled;
 uniform int tileMode,tilePreview;
+uniform int mapOutput;
 layout(binding=1) uniform sampler2D flowTexture;
 layout(binding=2) uniform sampler2D pigmentTexture;
 layout(binding=3) uniform sampler2D feedbackTexture;
@@ -46,7 +47,7 @@ void main() {
     float f=field(p),cell=cellular(p).x;
 #if recipe == 15
     f=customField(p);
-    if(isnan(f)||isinf(f)){color=vec4(8.,0.,5.,1.);return;}
+    if(isnan(f)||isinf(f)){color=mapOutput==0?vec4(8.,0.,5.,1.):vec4(f);return;}
 #endif
     if(recipe==7)f=field(p+vec2(f,field(p*.4))*1.5);
     if(recipe==13)f=mix(f,cell-.5,.5+.5*sin(motionPhase.y));
@@ -54,6 +55,9 @@ void main() {
     if(recipe==10)f+=.2*sin(p.x*6.+motionPhase.x)*sin(p.y*7.-motionPhase.y);
     f=mix(f,cell-.5,role);
     if(recipe==1) { float phase=f*32.; float aa=max(fwidth(phase),.01); f=.8-smoothstep(.08,.08+aa,abs(sin(phase))); }
+    if(mapOutput==1){color=vec4(f*height,0.,0.,1.);return;}
+    if(mapOutput==2){vec2 slope=vec2(dFdx(f),dFdy(f))*viewport.y/(2.*scale);color=vec4(normalize(vec3(-slope*height,1.)),1.);return;}
+    if(mapOutput==3){float edge=max(fwidth(f),1e-6);color=vec4(smoothstep(-edge,edge,f),0.,0.,1.);return;}
     vec2 grad=vec2(dFdx(f),dFdy(f))*viewport.y*.35;
 #if recipe == 15
     grad=customGradient(p)*scale;
@@ -81,6 +85,8 @@ void main() {
         linear=mix(linear,old,historyMix);
     }
     if(feedbackEnabled!=0)linear=mix(linear,texture(feedbackTexture,uv).rgb,.65);
+    if(mapOutput==4){color=vec4(max(linear,0.),1.);return;}
+    if(mapOutput==5){color=vec4(max(linear-.65,0.),1.);return;}
     if(debugView==2)linear=vec3(cellular(p).z);
     if(debugView==3)linear=vec3(texture(flowTexture,uv).xy*.5+.5,.5);
     if(debugView==6)linear=texture(pigmentTexture,uv).rgb;

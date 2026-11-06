@@ -297,6 +297,57 @@ public final class Renderer implements AutoCloseable {
     return reference != null;
   }
 
+  public dev.visualengine.export.TextureMap.Data captureMap(
+      Settings s,
+      double time,
+      dev.visualengine.export.TextureMap.Kind kind,
+      dev.visualengine.export.CaptureSize size,
+      dev.visualengine.export.TextureMap.Range range,
+      double x,
+      double y,
+      boolean brush) {
+    s.validate();
+    kind.validate(range);
+    if (simulation == null
+        || simulation.grid != s.grid
+        || simulation.particles.count != s.particles
+        || simulation.history.layers != s.historyLayers
+        || structureChanged(s))
+      throw new IllegalArgumentException("Configure the current scene before exporting maps");
+    material.require("mapOutput");
+    int w = size.width(), h = size.height();
+    Budget.require(bytes() + (long) w * h * kind.gpuChannels() * 4);
+    int read = glGetInteger(GL_READ_FRAMEBUFFER_BINDING),
+        draw = glGetInteger(GL_DRAW_FRAMEBUFFER_BINDING);
+    int[] viewport = new int[4];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    Texture output = null;
+    try {
+      output = new Texture(w, h, kind.channels == 1 ? GL_R32F : GL_RGBA32F);
+      output.target();
+      glDisable(GL_FRAMEBUFFER_SRGB);
+      glDisable(GL_BLEND);
+      material.use();
+      uniforms(material, s, time, w, h, x, y, brush);
+      simulation.materialUniforms(material, s);
+      material.i("feedbackEnabled", s.feedbackEnabled && !s.graphEnabled ? 1 : 0);
+      material.i("pigmentEnabled", s.pigmentEnabled ? 1 : 0);
+      material.i("mapOutput", kind.shaderId);
+      material.i("tilePreview", 0);
+      simulation.bind();
+      triangle();
+      return new dev.visualengine.export.TextureMap.Data(
+          kind, size, range, GpuTransfers.read(output));
+    } finally {
+      if (output != null) output.close();
+      material.use();
+      material.i("mapOutput", 0);
+      glBindFramebuffer(GL_READ_FRAMEBUFFER, read);
+      glBindFramebuffer(GL_DRAW_FRAMEBUFFER, draw);
+      glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+    }
+  }
+
   public double gpuMilliseconds() {
     return timer.milliseconds();
   }
@@ -434,6 +485,7 @@ public final class Renderer implements AutoCloseable {
 
   public static void uniforms(
       Program p, Settings s, double time, int w, int h, double x, double y, boolean brush) {
+    p.i("mapOutput", 0);
     p.v2("viewport", w, h);
     p.ui("seed", (int) dev.visualengine.time.Seeds.derive(s.seed, "field", "root"));
     double a = s.loopSeconds > 0 ? time * Math.PI * 2 / s.loopSeconds : s.motionClock;

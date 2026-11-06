@@ -59,7 +59,9 @@ public final class Texture implements AutoCloseable {
   }
 
   public long bytes() {
-    return (long) width * height * (format == GL_R32F || format == GL_RGBA8 ? 4 : 8);
+    return (long) width
+        * height
+        * (format == GL_RGBA32F ? 16 : format == GL_R32F || format == GL_RGBA8 ? 4 : 8);
   }
 
   @Override
