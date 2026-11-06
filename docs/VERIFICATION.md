@@ -7,8 +7,8 @@ Recorded November 6 2026. Source implementation includes the renderer, sixteen r
 | Check | Result |
 | --- | --- |
 | Java 25 compilation and distribution assembly | Passed with Temurin 25.0.5+8 |
-| JVM contracts | 336 passed: parsing, types, bounds, graph cycles and pruning, seeds, preset migrations, modulation, clocks, replay, custom controls, hashes, typed groups, checkpoint archives, quality profiles, still metadata, discovery integrity/branching/gallery, 16-bit map encoding/metadata/UI, morph compatibility/interpolation/phases/command ordering/UI, directional formulas/effects/hashes/UI, seam/loop metrics/context/UI, benchmark attribution/percentiles/workloads/CLI and memory limits |
-| OpenGL contracts | 137 passed on Mesa llvmpipe, OpenGL 4.5 core, Mesa 25.2.8, LLVM 20.1.2 |
+| JVM contracts | 368 passed: parsing, types, bounds, graph cycles and pruning, seeds, preset migrations, modulation, clocks, replay, custom controls, hashes, typed groups, checkpoint archives, quality profiles, still metadata, discovery integrity/branching/gallery, 16-bit map encoding/metadata/UI, morph compatibility/interpolation/phases/command ordering/UI, directional formulas/effects/hashes/UI, seam/loop metrics/context/UI, benchmark attribution/percentiles/workloads/CLI, presentation preference/deadline/UI contracts and memory limits |
+| OpenGL contracts | 138 passed on Mesa llvmpipe, OpenGL 4.5 core, Mesa 25.2.8, LLVM 20.1.2 |
 | Authoring behavior | Custom values change the image without relinking; encapsulating seeded graphs preserves their rendered output; typed group expressions link and render |
 | Recipe coverage | All sixteen recipes compiled and rendered; generated gallery includes PNGs and complete sidecars |
 | Directional fields | 4096 raw probe and 6144 material-height samples matched an independent double-precision reference within 0.0002; orientation response, half-turn symmetry, seeded repeatability, boundary continuity, clamps, nonfinite inputs and finite normal export passed |
@@ -17,6 +17,8 @@ Recorded November 6 2026. Source implementation includes the renderer, sixteen r
 | Installed inspection workflow | Inspection preserved exact live image, GPU state, clocks, replay cursor, unfinished smoothing and pointer input. Spatial reports avoided future-state inference; analytic endpoints matched within one display level. Oversized requests and failed atomic publication preserved existing destinations |
 | Benchmark timing | Completed queries retained unique sequence/frame attribution; delayed warmup data stayed outside measured samples; coverage accounted for render frames and individual ticks. Instrumentation preserved image, phase clocks, metadata and every GPU state byte |
 | Installed benchmark suite | Two seven-case smoke suites reproduced workload identities, PNG bytes, state hashes, clocks and simulation metadata. The saved history replay reproduced ordinary engine image/state; single-scene benchmarking preserved output and state. Existing destinations were rejected and missing-shader runs created no staged output |
+| Presentation controls | Deadline bounds, early wakes, late frames, counter wraparound, reset/uncapped behavior, strict preference parsing, atomic-save failure preservation, actual Swing actions and CLI restrictions passed. The real headless context forced unsynchronized uncapped requests |
+| Installed presentation isolation | Missing, capped and corrupt desktop preferences were ignored and unchanged by offline runs; PNGs, GPU bytes, clocks, replay and smoothing matched exactly. Benchmark metadata recorded the offline request, and rejected desktop overrides preserved destinations |
 | Reset and pause | Repeated reset at the same seed/tick reproduced the image; repeated rendering without ticks preserved it |
 | Pigment transport | Constant-field preservation and positive-flow impulse direction passed on a 65×65 grid |
 | Reaction diffusion | Concentrations remained finite and bounded over 256 ticks at three exposed coefficient combinations; initialization responds to root seed |
@@ -76,6 +78,8 @@ Before public release, run the specification's matrix on physical Windows machin
 The installed Linux script launcher was exercised with replay exports. A native Linux app image was built, but its launcher could not be validated in this sandbox because the process filesystem is unavailable. Linux app images are outside the Windows distribution target.
 
 ## Scope of this release
+
+Version 0.11 adds [desktop VSync and frame-cap preferences](PRESENTATION.md), a wakeable deadline scheduler, separate atomic preference persistence and session-only CLI overrides. Offline output and suites bypass desktop pacing. Observed Windows timing accuracy and native event behavior remain physical acceptance work.
 
 Version 0.10 adds a [seven-case reproducible benchmark suite](BENCHMARKS.md), pinned smoke/quick/standard profiles, raw frame-attributed query samples, explicit coverage, setup measurements and deterministic image/state outcomes. Ordinary sessions no longer retain unused benchmark sample history. The suite records performance evidence without enforcing CI timing thresholds or claiming hardware targets.
 

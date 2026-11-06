@@ -46,6 +46,8 @@ Version 0.9 adds rendered seam and analytic-loop inspection in the Inspect tab a
 
 Version 0.10 adds a seven-case performance suite with pinned workloads, replay inputs, raw frame-attributed timings, query coverage and image/state hashes. Run `--benchmark-suite results --benchmark-profile quick`. See [profiles, measurement scopes and comparison guidance](docs/BENCHMARKS.md).
 
+Version 0.11 adds saved desktop VSync and frame-cap controls in the Presentation tab, with session overrides such as `--vsync off --frame-limit 60`. Wakeable event waits preserve responsiveness; offline output and benchmark suites stay uncapped. See [pacing, persistence and catch-up limits](docs/PRESENTATION.md).
+
 Discovery bookmarks save artwork and its complete restarting configuration under the user-data directory. A/B comparison shows a frozen or saved finished frame on the left and the live scene on the right; this does not run two independent simulations. GPU storage is estimated before quality changes and capped at 512 MiB.
 
 ## Verification
