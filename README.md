@@ -34,7 +34,9 @@ Version 0.3 adds full simulation checkpoints in the Files tab. Use `--save-check
 
 Version 0.4 adds Draft, Balanced and Detailed quality presets with visible settings and memory estimates. Still captures can render at a chosen resolution without resizing the live window or advancing state: `--capture artwork.png --capture-size 2560x1600`. See [quality presets and still output](docs/QUALITY_AND_STILLS.md).
 
-Discovery bookmarks save artwork and its complete configuration under the user-data directory. A/B comparison shows a frozen finished frame on the left and the live scene on the right; this does not run two independent simulations. GPU storage is estimated before quality changes and capped at 512 MiB.
+Version 0.5 adds a discovery gallery with thumbnails, search, favorites, labels, composition locks and palette/motion branching. Saved artwork can become an A/B reference. Use the Files bookmark action or `--bookmark LABEL` after a finite run; `--discovery ID` reopens its configuration from tick 0. See [discovery history](docs/DISCOVERIES.md).
+
+Discovery bookmarks save artwork and its complete restarting configuration under the user-data directory. A/B comparison shows a frozen or saved finished frame on the left and the live scene on the right; this does not run two independent simulations. GPU storage is estimated before quality changes and capped at 512 MiB.
 
 ## Verification
 
