@@ -69,6 +69,10 @@ public final class GpuChecks {
   public static void main(String[] args) throws Exception {
     try (Window window = new Window(96, 64, true);
         Renderer renderer = new Renderer(new ShaderSources(null))) {
+      window.applyPresentation(new dev.visualengine.platform.Presentation(true, 60));
+      check(
+          window.presentation().equals(dev.visualengine.platform.Presentation.OFFLINE),
+          "headless context forces unsynchronized uncapped presentation");
       Settings s = settings();
       renderer.reset(s);
       Settings active = evolve(renderer, s, 16);

@@ -11,9 +11,12 @@ public final class Window implements AutoCloseable {
   public final long handle;
   private final GLFWErrorCallback error;
   private org.lwjgl.system.Callback debug;
+  private final boolean headless;
+  private Presentation presentation;
   public int width, height;
 
   public Window(int w, int h, boolean headless) {
+    this.headless = headless;
     error = GLFWErrorCallback.createPrint(System.err);
     error.set();
     boolean nullEgl =
@@ -48,7 +51,7 @@ public final class Window implements AutoCloseable {
         throw new IllegalStateException("The active graphics driver does not provide OpenGL 4.3.");
       }
       debug = GLUtil.setupDebugMessageCallback(System.err);
-      glfwSwapInterval(headless ? 0 : 1);
+      applyPresentation(Presentation.DEFAULT);
       resize();
       System.out.println(
           "GPU: "
@@ -61,6 +64,18 @@ public final class Window implements AutoCloseable {
       close();
       throw e;
     }
+  }
+
+  public void applyPresentation(Presentation requested) {
+    if (glfwGetCurrentContext() != handle)
+      throw new IllegalStateException("Presentation changes require the owning current context");
+    presentation = headless ? Presentation.OFFLINE : java.util.Objects.requireNonNull(requested);
+    glfwSwapInterval(presentation.vsync() ? 1 : 0);
+  }
+
+  /** Application request; driver settings may override swap synchronization. */
+  public Presentation presentation() {
+    return presentation;
   }
 
   public void resize() {
