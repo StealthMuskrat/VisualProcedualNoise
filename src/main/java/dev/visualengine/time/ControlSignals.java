@@ -13,6 +13,61 @@ public final class ControlSignals {
   private final Map<String, List<Double>> effectSmooth = new LinkedHashMap<>();
   private static final Set<String> SMOOTHED = Set.of("scale", "warp", "detail", "height", "flow");
 
+  public record State(
+      double motionClock,
+      double colorClock,
+      Map<String, Double> smooth,
+      Map<String, List<Double>> effectSmooth) {
+    public State {
+      smooth = smooth == null ? null : Map.copyOf(smooth);
+      if (effectSmooth != null) {
+        Map<String, List<Double>> copy = new LinkedHashMap<>();
+        effectSmooth.forEach((id, v) -> copy.put(id, List.copyOf(v)));
+        effectSmooth = Map.copyOf(copy);
+      }
+    }
+
+    public void validate(Settings settings) {
+      if (!Double.isFinite(motionClock)
+          || !Double.isFinite(colorClock)
+          || Math.abs(motionClock) > 1e12
+          || Math.abs(colorClock) > 1e12
+          || smooth == null
+          || effectSmooth == null) throw new IllegalArgumentException("Invalid checkpoint clocks");
+      for (var entry : smooth.entrySet()) {
+        var p =
+            Settings.PARAMETERS.stream()
+                .filter(x -> x.id().equals(entry.getKey()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Unknown checkpoint signal"));
+        p.validate(entry.getValue());
+      }
+      effectSmooth.forEach((id, value) -> settings.effectControl(id).validateValue(value));
+    }
+  }
+
+  public State snapshot(Settings settings) {
+    Map<String, List<Double>> values = new LinkedHashMap<>();
+    effectSmooth.forEach((id, v) -> {
+      if (settings.effectValues.containsKey(id)) {
+        var c = settings.effectControl(id);
+        if (v.size() == c.type().width)
+          values.put(id, v.stream().map(x -> Math.clamp(x, c.minimum(), c.maximum())).toList());
+      }
+    });
+    return new State(motionClock, colorClock, smooth, values);
+  }
+
+  public void restore(State state, Settings settings) {
+    state.validate(settings);
+    smooth.clear();
+    smooth.putAll(state.smooth());
+    effectSmooth.clear();
+    effectSmooth.putAll(state.effectSmooth());
+    motionClock = state.motionClock();
+    colorClock = state.colorClock();
+  }
+
   public void reset() {
     effectSmooth.clear();
     smooth.clear();

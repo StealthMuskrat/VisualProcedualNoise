@@ -57,6 +57,16 @@ public final class ReplayLog {
     return result;
   }
 
+  public int cursor() {
+    return cursor;
+  }
+
+  public void restoreCursor(int position) {
+    if (position < 0 || position > events.size())
+      throw new IllegalArgumentException("Invalid checkpoint replay cursor");
+    cursor = position;
+  }
+
   public void rewind() {
     cursor = 0;
   }

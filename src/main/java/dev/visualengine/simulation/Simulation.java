@@ -78,6 +78,95 @@ public final class Simulation implements AutoCloseable {
     ageProgram = next[4];
   }
 
+  public record State(
+      int pigmentIndex,
+      int feedbackIndex,
+      int chemicalsIndex,
+      int ageIndex,
+      boolean chemicalInitialized,
+      double previousX,
+      double previousY,
+      boolean previousBrush,
+      Particles.State particles,
+      History.State history) {
+    public void validate(Settings settings, long tick) {
+      for (int index : new int[] {pigmentIndex, feedbackIndex, chemicalsIndex, ageIndex})
+        if (index < 0 || index > 1) throw new IllegalArgumentException("Invalid simulation index");
+      if (!Double.isFinite(previousX)
+          || !Double.isFinite(previousY)
+          || Math.abs(previousX) > 1e6
+          || Math.abs(previousY) > 1e6
+          || particles == null
+          || history == null) throw new IllegalArgumentException("Invalid simulation metadata");
+      particles.validate();
+      history.validLayers(settings.historyLayers, tick);
+    }
+  }
+
+  public State state() {
+    return new State(
+        pigment.index(),
+        feedback.index(),
+        chemicals.index(),
+        age.index(),
+        chemicalInitialized,
+        previousX,
+        previousY,
+        previousBrush,
+        particles.state(),
+        history.state());
+  }
+
+  public java.util.Map<String, byte[]> capture() {
+    java.util.Map<String, byte[]> blobs = new java.util.LinkedHashMap<>();
+    blobs.put("flow", GpuTransfers.read(flow));
+    String[] names = {"pigment", "feedback", "chemicals", "age", "trails"};
+    PingPong[] pairs = {pigment, feedback, chemicals, age, particles.trails};
+    for (int i = 0; i < names.length; i++)
+      for (int side = 0; side < 2; side++)
+        blobs.put(names[i] + "." + side, GpuTransfers.read(pairs[i].side(side)));
+    blobs.put(
+        "particles",
+        particles.state().initialize()
+            ? new byte[0]
+            : GpuTransfers.readBuffer(particles.buffer, settingsParticleBytes()));
+    for (int layer : history.state().validLayers(history.layers, Long.MAX_VALUE))
+      blobs.put("history." + layer, GpuTransfers.readLayer(history.id, layer, history.resolution));
+    return blobs;
+  }
+
+  private int settingsParticleBytes() {
+    return particles.count * 32;
+  }
+
+  public void restore(State state, java.util.Map<String, byte[]> blobs, long tick) {
+    GpuTransfers.write(flow, blobs.get("flow"));
+    String[] names = {"pigment", "feedback", "chemicals", "age"};
+    PingPong[] pairs = {pigment, feedback, chemicals, age};
+    for (int i = 0; i < names.length; i++)
+      for (int side = 0; side < 2; side++)
+        GpuTransfers.write(pairs[i].side(side), blobs.get(names[i] + "." + side));
+    pigment.restoreIndex(state.pigmentIndex());
+    feedback.restoreIndex(state.feedbackIndex());
+    chemicals.restoreIndex(state.chemicalsIndex());
+    age.restoreIndex(state.ageIndex());
+    chemicalInitialized = state.chemicalInitialized();
+    previousX = state.previousX();
+    previousY = state.previousY();
+    previousBrush = state.previousBrush();
+    particles.restore(state.particles(), blobs);
+    history.restore(state.history(), blobs, tick);
+  }
+
+  public String signature() {
+    return flowProgram.sourceHash
+        + pigmentProgram.sourceHash
+        + feedbackProgram.sourceHash
+        + reactionProgram.sourceHash
+        + ageProgram.sourceHash
+        + particles.signature();
+  }
+
   public void reset() {
     flow.clear(0, 0, 0, 0);
     pigment.clear(0, 0, 0, 0);

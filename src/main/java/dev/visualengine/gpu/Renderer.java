@@ -245,6 +245,73 @@ public final class Renderer implements AutoCloseable {
     return tickTimer.milliseconds();
   }
 
+  public String programSignature() {
+    if (simulation == null) throw new IllegalStateException("Renderer is not configured");
+    try {
+      return java.util.HexFormat.of()
+          .formatHex(
+              java.security.MessageDigest.getInstance("SHA-256")
+                  .digest(
+                      (material.sourceHash
+                              + finish.sourceHash
+                              + bloom.sourceHash
+                              + simulation.signature())
+                          .getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    } catch (java.security.NoSuchAlgorithmException e) {
+      throw new AssertionError(e);
+    }
+  }
+
+  public static String deviceSignature() {
+    return glGetString(GL_VENDOR)
+        + " / "
+        + glGetString(GL_RENDERER)
+        + " / "
+        + glGetString(GL_VERSION);
+  }
+
+  public GpuSnapshot snapshot(Settings settings, long tick) {
+    configure(settings);
+    var blobs = simulation.capture();
+    GpuSnapshot.Reference ref = null;
+    if (reference != null) {
+      ref = new GpuSnapshot.Reference(reference.width, reference.height);
+      blobs.put("reference", GpuTransfers.read(reference));
+    }
+    var snapshot =
+        new GpuSnapshot(deviceSignature(), programSignature(), simulation.state(), ref, blobs);
+    snapshot.validate(settings, tick);
+    return snapshot;
+  }
+
+  public Renderer stageRestore(Settings settings, GpuSnapshot snapshot, long tick) {
+    snapshot.validate(settings, tick);
+    if (!deviceSignature().equals(snapshot.device()))
+      throw new IllegalArgumentException("Checkpoint graphics device or driver does not match");
+    Budget.require(
+        bytes()
+            + Budget.persistent(settings)
+            + (snapshot.reference() == null ? 0 : snapshot.reference().bytes()));
+    Renderer candidate = new Renderer(sources);
+    try {
+      candidate.configure(settings);
+      if (!candidate.programSignature().equals(snapshot.signature()))
+        throw new IllegalArgumentException(
+            "Checkpoint shader programs do not match this build or shader source");
+      candidate.simulation.restore(snapshot.simulation(), snapshot.blobs(), tick);
+      if (snapshot.reference() != null) {
+        var ref = snapshot.reference();
+        candidate.reference = new Texture(ref.width(), ref.height(), GL_RGBA8);
+        candidate.reference.clamp();
+        GpuTransfers.write(candidate.reference, snapshot.blobs().get("reference"));
+      }
+      return candidate;
+    } catch (RuntimeException e) {
+      candidate.close();
+      throw e;
+    }
+  }
+
   public int materialProgramId() {
     return material.id;
   }

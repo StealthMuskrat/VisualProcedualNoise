@@ -14,6 +14,13 @@ public final class Playback {
     return tick * DT;
   }
 
+  public void restore(long tick) {
+    if (tick < 0 || tick > (1L << 52))
+      throw new IllegalArgumentException("Checkpoint tick is outside the supported range");
+    this.tick = tick;
+    accumulator = 0;
+  }
+
   public void reset() {
     tick = 0;
     accumulator = 0;

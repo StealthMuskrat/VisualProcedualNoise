@@ -34,6 +34,53 @@ public final class History implements AutoCloseable {
     reset();
   }
 
+  public record State(int count, int head, long[] ticks) {
+    public State {
+      ticks = ticks == null ? null : ticks.clone();
+    }
+
+    public long[] ticks() {
+      return ticks == null ? null : ticks.clone();
+    }
+
+    public java.util.Set<Integer> validLayers(int layers, long tick) {
+      if (ticks == null
+          || ticks.length != layers
+          || count < 0
+          || count > layers
+          || count == 0 && head != -1
+          || count > 0 && (head < 0 || head >= layers))
+        throw new IllegalArgumentException("Invalid history ring metadata");
+      java.util.Set<Integer> valid = new java.util.TreeSet<>();
+      long previous = Long.MAX_VALUE;
+      for (int i = 0; i < count; i++) {
+        int layer = (head - i + layers) % layers;
+        long t = ticks[layer];
+        if (t < 0 || t > tick || t % 8 != 0 || t >= previous)
+          throw new IllegalArgumentException("Invalid history timestamps");
+        previous = t;
+        valid.add(layer);
+      }
+      for (int i = 0; i < layers; i++)
+        if (!valid.contains(i) && ticks[i] != -1)
+          throw new IllegalArgumentException("Invalid history validity mask");
+      return java.util.Set.copyOf(valid);
+    }
+  }
+
+  public State state() {
+    return new State(count, head, ticks);
+  }
+
+  public void restore(State state, java.util.Map<String, byte[]> blobs, long tick) {
+    for (int layer : state.validLayers(layers, tick))
+      dev.visualengine.gpu.GpuTransfers.writeLayer(
+          id, layer, resolution, blobs.get("history." + layer));
+    count = state.count();
+    head = state.head();
+    System.arraycopy(state.ticks(), 0, ticks, 0, layers);
+  }
+
   public void reset() {
     count = 0;
     head = -1;

@@ -258,10 +258,124 @@ public final class GpuChecks {
       check(
           history.count() == 3 && Arrays.stream(history.ticks()).max().orElse(-1) == 64,
           "history ring bounds and timestamps");
+      checkpoints();
       reloadFailure(window);
       check(glGetError() == GL_NO_ERROR, "no final GL error");
       System.out.println("GPU checks passed: " + count + " | " + glGetString(GL_RENDERER));
     }
+  }
+
+  private static void checkpoints() {
+    Settings s = settings();
+    Recipes.apply(s, Settings.Recipe.TIME_EXCAVATION);
+    s.pigmentEnabled = s.feedbackEnabled = s.reactionEnabled = s.particlesEnabled = true;
+    s.debug = 7;
+    s.installEffectControls(List.of(AuthoringChecks.scalar()), Map.of());
+    ControlSignals signals = new ControlSignals();
+    try (Renderer r = new Renderer(new ShaderSources(null))) {
+      r.reset(s);
+      GpuSnapshot empty = r.snapshot(s, 0);
+      check(
+          empty.blobs().get("particles").length == 0
+              && empty.blobs().keySet().stream().noneMatch(n -> n.startsWith("history.")),
+          "reset snapshot omits uninitialized particles and history layers");
+      try (Renderer restored = r.stageRestore(s, empty, 0)) {
+        check(sameBlobs(empty, restored.snapshot(s, 0)), "reset state restores exactly");
+      }
+      for (int tick = 1; tick <= 303; tick++) {
+        if (tick == 301) {
+          s.set("warp", 1.7);
+          s.setEffectValue("amplitude", List.of(2.));
+        }
+        checkpointTick(r, signals, s, tick);
+      }
+      r.render(signals.frame(s), 303 * Playback.DT, 96, 64, .2, .1, true);
+      int[] before = image();
+      r.freezeFinished(96, 64);
+      glActiveTexture(GL_TEXTURE10);
+      glBindTexture(GL_TEXTURE_2D, r.diagnostics().flow.id);
+      glPixelStorei(GL_PACK_ALIGNMENT, 8);
+      GpuSnapshot saved = r.snapshot(s, 303);
+      check(
+          glGetInteger(GL_ACTIVE_TEXTURE) == GL_TEXTURE10
+              && glGetInteger(GL_TEXTURE_BINDING_2D) == r.diagnostics().flow.id
+              && glGetInteger(GL_PACK_ALIGNMENT) == 8,
+          "snapshot preserves texture bindings and pixel transfer state");
+      glPixelStorei(GL_PACK_ALIGNMENT, 4);
+      ControlSignals.State controls = signals.snapshot(s);
+      check(
+          controls.effectSmooth().get("amplitude").getFirst() < 2
+              && controls.smooth().get("warp") < 1.7,
+          "checkpoint includes unfinished smoothing");
+      check(
+          saved.simulation().history().count() == 3
+              && saved.simulation().history().head() == 0
+              && saved.simulation().pigmentIndex() == 1,
+          "checkpoint includes wrapped history and odd ping-pong indices");
+      r.render(signals.frame(s), 303 * Playback.DT, 96, 64, .2, .1, true);
+      check(Arrays.equals(before, image()), "readback leaves paused image unchanged");
+      for (int tick = 304; tick <= 312; tick++) checkpointTick(r, signals, s, tick);
+      r.render(signals.frame(s), 312 * Playback.DT, 96, 64, .2, .1, true);
+      int[] expected = image();
+      GpuSnapshot end = r.snapshot(s, 312);
+      try (Renderer restored = r.stageRestore(s, saved, 303)) {
+        ControlSignals resumedSignals = new ControlSignals();
+        resumedSignals.restore(controls, s);
+        check(sameBlobs(saved, restored.snapshot(s, 303)), "all saved GPU bytes restored exactly");
+        for (int tick = 304; tick <= 312; tick++) checkpointTick(restored, resumedSignals, s, tick);
+        restored.render(resumedSignals.frame(s), 312 * Playback.DT, 96, 64, .2, .1, true);
+        GpuSnapshot resumed = restored.snapshot(s, 312);
+        check(
+            Arrays.equals(expected, image()) && sameBlobs(end, resumed),
+            "checkpoint continuation reproduces image and every persistent GPU resource");
+        check(
+            signals.snapshot(s).equals(resumedSignals.snapshot(s)),
+            "phase clocks and smoothing resume exactly");
+      }
+      boolean rejected = false;
+      try (Renderer unused =
+          r.stageRestore(
+              s,
+              new GpuSnapshot(
+                  saved.device(),
+                  "0".repeat(64),
+                  saved.simulation(),
+                  saved.reference(),
+                  saved.blobs()),
+              303)) {
+        throw new AssertionError("incompatible shader snapshot accepted");
+      } catch (IllegalArgumentException expectedError) {
+        rejected = true;
+      }
+      r.render(signals.frame(s), 312 * Playback.DT, 96, 64, .2, .1, true);
+      check(
+          rejected && Arrays.equals(expected, image()) && sameBlobs(end, r.snapshot(s, 312)),
+          "failed staged restore preserves active image and resources");
+      Map<String, byte[]> corrupt = new LinkedHashMap<>(saved.blobs());
+      byte[] badFlow = corrupt.get("flow").clone();
+      ByteBuffer.wrap(badFlow).order(ByteOrder.LITTLE_ENDIAN).putFloat(Float.NaN);
+      corrupt.put("flow", badFlow);
+      rejected = false;
+      try {
+        new GpuSnapshot(
+                saved.device(), saved.signature(), saved.simulation(), saved.reference(), corrupt)
+            .validate(s, 303);
+      } catch (IllegalArgumentException expectedError) {
+        rejected = true;
+      }
+      check(rejected, "nonfinite checkpoint data rejected before upload");
+    }
+  }
+
+  private static void checkpointTick(Renderer r, ControlSignals signals, Settings s, int tick) {
+    double x = .3 * Math.sin(tick * .013), y = .2 * Math.cos(tick * .017);
+    r.tick(signals.tick(s, tick * Playback.DT), tick * Playback.DT, 1.5, x, y, tick % 23 < 17);
+  }
+
+  private static boolean sameBlobs(GpuSnapshot a, GpuSnapshot b) {
+    return a.blobs().keySet().equals(b.blobs().keySet())
+        && a.blobs().entrySet().stream()
+            .allMatch(e -> Arrays.equals(e.getValue(), b.blobs().get(e.getKey())));
   }
 
   private static boolean allFiniteRange(float[] values, float minimum, float maximum) {

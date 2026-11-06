@@ -14,6 +14,20 @@ public final class PingPong implements AutoCloseable {
     }
   }
 
+  public int index() {
+    return index;
+  }
+
+  public Texture side(int side) {
+    if (side < 0 || side > 1) throw new IllegalArgumentException("Invalid ping pong side");
+    return textures[side];
+  }
+
+  public void restoreIndex(int value) {
+    if (value < 0 || value > 1) throw new IllegalArgumentException("Invalid ping pong index");
+    index = value;
+  }
+
   public Texture read() {
     return textures[index];
   }

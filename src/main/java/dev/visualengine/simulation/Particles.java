@@ -53,6 +53,30 @@ public final class Particles implements AutoCloseable {
     fade = f;
   }
 
+  public record State(boolean initialize, int trailsIndex) {
+    public void validate() {
+      if (trailsIndex < 0 || trailsIndex > 1)
+        throw new IllegalArgumentException("Invalid trail index");
+    }
+  }
+
+  public State state() {
+    return new State(initialize, trails.index());
+  }
+
+  public void restore(State state, java.util.Map<String, byte[]> blobs) {
+    state.validate();
+    GpuTransfers.writeBuffer(buffer, blobs.get("particles"));
+    for (int side = 0; side < 2; side++)
+      GpuTransfers.write(trails.side(side), blobs.get("trails." + side));
+    initialize = state.initialize();
+    trails.restoreIndex(state.trailsIndex());
+  }
+
+  public String signature() {
+    return update.sourceHash + draw.sourceHash + fade.sourceHash;
+  }
+
   public void reset() {
     initialize = true;
     trails.clear(0, 0, 0, 0);

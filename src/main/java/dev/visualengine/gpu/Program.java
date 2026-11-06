@@ -6,6 +6,7 @@ import java.util.*;
 
 public final class Program implements AutoCloseable {
   public final int id;
+  public final String sourceHash;
   private final Map<String, Integer> locations = new HashMap<>();
 
   public Program(String vertex, String fragment) {
@@ -17,6 +18,17 @@ public final class Program implements AutoCloseable {
   }
 
   private Program(int[] stages, String[] sources) {
+    try {
+      sourceHash =
+          java.util.HexFormat.of()
+              .formatHex(
+                  java.security.MessageDigest.getInstance("SHA-256")
+                      .digest(
+                          (Arrays.toString(stages) + String.join("\0", sources))
+                              .getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    } catch (java.security.NoSuchAlgorithmException e) {
+      throw new AssertionError(e);
+    }
     int program = glCreateProgram();
     List<Integer> shaders = new ArrayList<>();
     try {
