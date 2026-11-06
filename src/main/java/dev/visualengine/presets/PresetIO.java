@@ -7,6 +7,7 @@ import java.nio.file.*;
 import java.util.*;
 
 public final class PresetIO {
+  public static final String ENGINE_VERSION = "0.3.0";
   public static final String REVISION = "gradient-v1-simulation-v2";
   public static final Gson JSON =
       new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
@@ -17,7 +18,7 @@ public final class PresetIO {
     settings.validate();
     JsonObject root = new JsonObject();
     root.addProperty("schemaVersion", 4);
-    root.addProperty("engineVersion", "0.2.0");
+    root.addProperty("engineVersion", ENGINE_VERSION);
     root.addProperty("algorithmRevision", REVISION);
     root.addProperty("rootSeed", Long.toString(settings.seed));
     root.addProperty("statePolicy", "restart");

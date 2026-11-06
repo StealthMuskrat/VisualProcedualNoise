@@ -23,7 +23,9 @@ public final class Main {
     }
     if (java.util.Arrays.asList(args).contains("--help")) {
       System.out.println(
-          "Procedural Visual Engine 0.2.0\n"
+          "Procedural Visual Engine "
+              + dev.visualengine.presets.PresetIO.ENGINE_VERSION
+              + "\n"
               + "Java 25 / OpenGL 4.3\n"
               + "--preset file.json --effect effect.json --recipe NAME --seed INTEGER --grid"
               + " 32..1024\n"
@@ -31,6 +33,7 @@ public final class Main {
               + "--headless --frames N --size WIDTHxHEIGHT --capture artwork.png\n"
               + "--export DIRECTORY --frames N --fps 24|30|60|120 --warmup TICKS\n"
               + "--replay take.replay.json --list-recipes\n"
+              + "--checkpoint study.vstate --save-checkpoint study.vstate\n"
               + "Interactive: Space pause, period step, R reset, F5 reload, F11 fullscreen, Tab"
               + " controls, Escape exit");
       return;

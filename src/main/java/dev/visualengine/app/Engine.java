@@ -7,6 +7,7 @@ import dev.visualengine.export.Capture;
 import dev.visualengine.gpu.*;
 import dev.visualengine.model.Settings;
 import dev.visualengine.platform.Window;
+import dev.visualengine.presets.CheckpointIO;
 import dev.visualengine.presets.PresetIO;
 import dev.visualengine.time.*;
 import dev.visualengine.ui.ControlPanel;
@@ -37,6 +38,11 @@ public final class Engine implements AutoCloseable {
   private final dev.visualengine.export.Benchmark benchmark =
       new dev.visualengine.export.Benchmark();
   private Path capture;
+  private Path checkpointSave;
+  private final java.util.concurrent.atomic.AtomicBoolean checkpointBusy =
+      new java.util.concurrent.atomic.AtomicBoolean();
+  private CheckpointIO.Pointer renderedPointer = new CheckpointIO.Pointer(0, 0, false);
+  private boolean resumeFrame;
   private String device;
   private long sourceStamp;
   private volatile boolean accepting = true;
@@ -47,6 +53,17 @@ public final class Engine implements AutoCloseable {
   }
 
   public void run() throws Exception {
+    CheckpointIO.Snapshot initialCheckpoint = null;
+    if (options.checkpoint != null) {
+      initialCheckpoint = CheckpointIO.load(options.checkpoint);
+      settings = initialCheckpoint.settings().copy();
+      if (!options.explicitSize) {
+        options.width = initialCheckpoint.width();
+        options.height = initialCheckpoint.height();
+      }
+      CheckpointIO.requireAspect(
+          options.width, options.height, initialCheckpoint.width(), initialCheckpoint.height());
+    }
     if (options.preset != null) settings = PresetIO.load(options.preset);
     if (options.effect != null)
       dev.visualengine.authoring.EffectPackage.load(options.effect).apply(settings);
@@ -71,7 +88,8 @@ public final class Engine implements AutoCloseable {
     dev.visualengine.authoring.EffectPackage.resolveResources(settings);
     window = new Window(options.width, options.height, options.headless);
     renderer = new Renderer(new ShaderSources(options.shaders));
-    renderer.configure(settings);
+    if (initialCheckpoint != null) restoreCheckpoint(initialCheckpoint);
+    else renderer.configure(settings);
     device =
         glGetString(GL_VENDOR) + " / " + glGetString(GL_RENDERER) + " / " + glGetString(GL_VERSION);
     if (!options.headless) controls = new ControlPanel(this::submit, settings, data);
@@ -156,6 +174,18 @@ public final class Engine implements AutoCloseable {
           glfwGetWindowAttrib(window.handle, GLFW_FOCUSED) == GLFW_TRUE
               && glfwGetMouseButton(window.handle, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
       for (int j = 0; j < steps; j++) advance(x, y, brush);
+      if (playbackLog != null) {
+        x = replayX;
+        y = replayY;
+        brush = replayBrush;
+      }
+      if (resumeFrame && steps == 0) {
+        x = renderedPointer.x();
+        y = renderedPointer.y();
+        brush = renderedPointer.brush();
+      }
+      resumeFrame = false;
+      renderedPointer = new CheckpointIO.Pointer(x, y, brush);
       renderer.render(
           signals.frame(settings), clock.seconds(), window.width, window.height, x, y, brush);
       if (freeze) {
@@ -181,6 +211,10 @@ public final class Engine implements AutoCloseable {
         capture = null;
       }
       if (options.capture != null && rendered + 1 == options.frames) capture(options.capture);
+      if (checkpointSave != null) {
+        saveCheckpoint(checkpointSave, false);
+        checkpointSave = null;
+      }
       glfwSwapBuffers(window.handle);
       rendered++;
       benchmark.record(
@@ -189,6 +223,7 @@ public final class Engine implements AutoCloseable {
           renderer.tickMilliseconds());
       if ((settings.paused || settings.speed == 0) && !options.headless) glfwWaitEvents();
     }
+    if (options.saveCheckpoint != null) saveCheckpoint(options.saveCheckpoint, options.headless);
     if (options.export != null) {
       var manifest = PresetIO.document(settings, clock.tick());
       manifest.addProperty("fps", options.fps);
@@ -450,6 +485,32 @@ public final class Engine implements AutoCloseable {
           if (controls != null) controls.sync(settings);
           status("Preset loaded; state restarted");
         }
+        case "saveCheckpoint" -> {
+          checkpointSave = (Path) c.value();
+          return;
+        }
+        case "loadCheckpoint" -> {
+          if (!checkpointBusy.compareAndSet(false, true))
+            throw new IllegalArgumentException("Wait for the current checkpoint operation");
+          if (!enqueueIO(
+              () -> {
+                try {
+                  submit(new Command("checkpointLoaded", CheckpointIO.load((Path) c.value())));
+                } catch (Exception e) {
+                  checkpointBusy.set(false);
+                  throw e;
+                }
+              })) checkpointBusy.set(false);
+          return;
+        }
+        case "checkpointLoaded" -> {
+          try {
+            restoreCheckpoint((CheckpointIO.Snapshot) c.value());
+          } finally {
+            checkpointBusy.set(false);
+          }
+          return;
+        }
         case "capture" -> capture = (Path) c.value();
         case "freeze" -> freeze = true;
         case "clearReference" -> renderer.clearReference();
@@ -543,12 +604,80 @@ public final class Engine implements AutoCloseable {
     }
   }
 
+  private void restoreCheckpoint(CheckpointIO.Snapshot snapshot) {
+    snapshot.validate();
+    CheckpointIO.requireAspect(window.width, window.height, snapshot.width(), snapshot.height());
+    Settings target = snapshot.settings().copy();
+    // Validate all CPU state before preparing GPU resources. The live renderer remains owned here.
+    ControlSignals restoredSignals = new ControlSignals();
+    restoredSignals.restore(snapshot.signals(), target);
+    ReplayLog restoredReplay = snapshot.replay() == null ? null : snapshot.replay().log();
+    if (restoredReplay != null) restoredReplay.restoreCursor(snapshot.replay().cursor());
+    Renderer candidate =
+        renderer.stageRestore(target, snapshot.gpu(), snapshot.tick(), window.width, window.height);
+    Renderer previous = renderer;
+    renderer = candidate;
+    settings = target;
+    signals.restore(restoredSignals.snapshot(target), target);
+    clock.restore(snapshot.tick());
+    playbackLog = restoredReplay;
+    replayX = snapshot.replay() == null ? 0 : snapshot.replay().pointer().x();
+    replayY = snapshot.replay() == null ? 0 : snapshot.replay().pointer().y();
+    replayBrush = snapshot.replay() != null && snapshot.replay().pointer().brush();
+    renderedPointer = snapshot.pointer();
+    resumeFrame = true;
+    recording = false;
+    recordingLog = null;
+    lastBrush = false;
+    reset = step = freeze = false;
+    discardElapsed = true;
+    undo.clear();
+    previous.close();
+    if (controls != null) controls.sync(settings);
+    status("Checkpoint resumed at tick " + clock.tick());
+  }
+
+  private void saveCheckpoint(Path path, boolean offline) {
+    if (!checkpointBusy.compareAndSet(false, true)) {
+      status("Wait for the current checkpoint operation");
+      return;
+    }
+    try {
+      var snapshot =
+          new CheckpointIO.Snapshot(
+              settings,
+              clock.tick(),
+              window.width,
+              window.height,
+              signals.snapshot(settings),
+              renderedPointer,
+              renderer.snapshot(settings, clock.tick()),
+              CheckpointIO.ReplayState.capture(
+                  playbackLog, new CheckpointIO.Pointer(replayX, replayY, replayBrush)));
+      IOAction write =
+          () -> {
+            try {
+              CheckpointIO.save(path, snapshot);
+              status("Checkpoint saved: " + path);
+            } finally {
+              checkpointBusy.set(false);
+            }
+          };
+      if (offline) enqueueIOBlocking(write);
+      else if (!enqueueIO(write)) checkpointBusy.set(false);
+    } catch (RuntimeException e) {
+      checkpointBusy.set(false);
+      if (options.headless) throw e;
+      status("Checkpoint save failed: " + e.getMessage());
+    }
+  }
+
   @FunctionalInterface
   private interface IOAction {
     void run() throws Exception;
   }
 
-  private void enqueueIO(IOAction action) {
+  private boolean enqueueIO(IOAction action) {
     try {
       io.execute(() -> {
         try {
@@ -559,8 +688,10 @@ public final class Engine implements AutoCloseable {
           status(e.getMessage());
         }
       });
+      return true;
     } catch (RejectedExecutionException e) {
       status("File queue is full; wait for the current capture");
+      return false;
     }
   }
 

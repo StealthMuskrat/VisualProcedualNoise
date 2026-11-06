@@ -167,6 +167,8 @@ public final class ControlPanel implements AutoCloseable {
     JPanel files = column();
     fileButton(files, "Save configuration preset", "save", "study.json", true);
     fileButton(files, "Load configuration preset (restart)", "load", "study.json", false);
+    fileButton(files, "Save full simulation checkpoint", "saveCheckpoint", "study.vstate", true);
+    fileButton(files, "Resume full simulation checkpoint", "loadCheckpoint", "study.vstate", false);
     fileButton(files, "Capture artwork PNG", "capture", "artwork.png", true);
     button(files, "Bookmark discovery (configuration and artwork)", "bookmark");
     button(files, "Freeze A/B reference (left frozen, right live)", "freeze");

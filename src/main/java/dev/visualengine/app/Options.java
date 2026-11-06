@@ -7,6 +7,8 @@ public final class Options {
   public int frames, width = 1280, height = 800;
   public Path shaders, preset, capture;
   public Path effect;
+  public Path checkpoint, saveCheckpoint;
+  public boolean explicitSize;
   public String expression;
   public Path export, replay;
   public Path benchmark;
@@ -22,6 +24,7 @@ public final class Options {
         case "--headless" -> o.headless = true;
         case "--frames" -> o.frames = Integer.parseInt(args[++i]);
         case "--size" -> {
+          o.explicitSize = true;
           String[] size = args[++i].split("x");
           o.width = Integer.parseInt(size[0]);
           o.height = Integer.parseInt(size[1]);
@@ -29,6 +32,8 @@ public final class Options {
         case "--shaders" -> o.shaders = Path.of(args[++i]);
         case "--preset" -> o.preset = Path.of(args[++i]);
         case "--effect" -> o.effect = Path.of(args[++i]);
+        case "--checkpoint" -> o.checkpoint = Path.of(args[++i]);
+        case "--save-checkpoint" -> o.saveCheckpoint = Path.of(args[++i]);
         case "--capture" -> o.capture = Path.of(args[++i]);
         case "--expression" -> {
           o.expression = args[++i];
@@ -65,6 +70,16 @@ public final class Options {
         || o.warmup > 120000)
       throw new IllegalArgumentException(
           "Use dimensions 32..8192 and --frames > 0 for headless mode");
+    if (o.checkpoint != null
+        && (o.preset != null
+            || o.effect != null
+            || o.replay != null
+            || o.recipe != null
+            || o.grid != null
+            || o.seed != null
+            || o.expression != null))
+      throw new IllegalArgumentException(
+          "Use --checkpoint without preset, effect, replay, or scene overrides");
     return o;
   }
 }

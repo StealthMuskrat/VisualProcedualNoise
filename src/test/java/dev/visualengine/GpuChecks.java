@@ -279,7 +279,7 @@ public final class GpuChecks {
           empty.blobs().get("particles").length == 0
               && empty.blobs().keySet().stream().noneMatch(n -> n.startsWith("history.")),
           "reset snapshot omits uninitialized particles and history layers");
-      try (Renderer restored = r.stageRestore(s, empty, 0)) {
+      try (Renderer restored = r.stageRestore(s, empty, 0, 96, 64)) {
         check(sameBlobs(empty, restored.snapshot(s, 0)), "reset state restores exactly");
       }
       for (int tick = 1; tick <= 303; tick++) {
@@ -318,7 +318,7 @@ public final class GpuChecks {
       r.render(signals.frame(s), 312 * Playback.DT, 96, 64, .2, .1, true);
       int[] expected = image();
       GpuSnapshot end = r.snapshot(s, 312);
-      try (Renderer restored = r.stageRestore(s, saved, 303)) {
+      try (Renderer restored = r.stageRestore(s, saved, 303, 96, 64)) {
         ControlSignals resumedSignals = new ControlSignals();
         resumedSignals.restore(controls, s);
         check(sameBlobs(saved, restored.snapshot(s, 303)), "all saved GPU bytes restored exactly");
@@ -342,7 +342,9 @@ public final class GpuChecks {
                   saved.simulation(),
                   saved.reference(),
                   saved.blobs()),
-              303)) {
+              303,
+              96,
+              64)) {
         throw new AssertionError("incompatible shader snapshot accepted");
       } catch (IllegalArgumentException expectedError) {
         rejected = true;

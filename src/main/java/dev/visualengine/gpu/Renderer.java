@@ -284,13 +284,23 @@ public final class Renderer implements AutoCloseable {
     return snapshot;
   }
 
-  public Renderer stageRestore(Settings settings, GpuSnapshot snapshot, long tick) {
+  public Renderer stageRestore(
+      Settings settings, GpuSnapshot snapshot, long tick, int width, int height) {
     snapshot.validate(settings, tick);
+    if (width < 1
+        || height < 1
+        || width > 8192
+        || height > 8192
+        || (long) width * height > 33_554_432)
+      throw new IllegalArgumentException("Invalid checkpoint output dimensions");
+    int outputWidth = Math.max(1, (int) (width * settings.displayScale));
+    int outputHeight = Math.max(1, (int) (height * settings.displayScale));
     if (!deviceSignature().equals(snapshot.device()))
       throw new IllegalArgumentException("Checkpoint graphics device or driver does not match");
     Budget.require(
         bytes()
             + Budget.persistent(settings)
+            + Budget.display(outputWidth, outputHeight)
             + (snapshot.reference() == null ? 0 : snapshot.reference().bytes()));
     Renderer candidate = new Renderer(sources);
     try {
@@ -305,6 +315,7 @@ public final class Renderer implements AutoCloseable {
         candidate.reference.clamp();
         GpuTransfers.write(candidate.reference, snapshot.blobs().get("reference"));
       }
+      candidate.ensureOutput(outputWidth, outputHeight);
       return candidate;
     } catch (RuntimeException e) {
       candidate.close();
