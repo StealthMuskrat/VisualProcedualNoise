@@ -44,7 +44,8 @@ public final class Engine implements AutoCloseable {
   private ReplayLog playbackLog, recordingLog;
   private boolean recording, lastBrush, replayBrush;
   private double replayX, replayY;
-  private final Deque<Settings> undo = new ArrayDeque<>();
+  private final dev.visualengine.model.SceneHistory undo =
+      new dev.visualengine.model.SceneHistory(64);
   private Settings settings = new Settings();
   private final PresetMorph.Session morph = new PresetMorph.Session();
   private Window window;
@@ -492,11 +493,6 @@ public final class Engine implements AutoCloseable {
     if (controls != null) controls.showStatus(text);
   }
 
-  private void remember() {
-    undo.push(settings.copy());
-    while (undo.size() > 64) undo.removeLast();
-  }
-
   private void drain() {
     Command.drain(commands, this::apply);
   }
@@ -505,8 +501,17 @@ public final class Engine implements AutoCloseable {
     if (c.needsFrame()) redraw.invalidate();
     Settings before = settings.copy();
     String sourceBefore = sourceDiscovery;
-    boolean resetBefore = reset;
-    try {
+    boolean resetBefore = reset,
+        stepBefore = step,
+        freezeBefore = freeze,
+        elapsedBefore = discardElapsed,
+        recordingBefore = recording,
+        brushBefore = replayBrush;
+    ReplayLog playbackBefore = playbackLog, recordingLogBefore = recordingLog;
+    int cursorBefore = playbackBefore == null ? 0 : playbackBefore.cursor();
+    double xBefore = replayX, yBefore = replayY;
+    boolean resolveHeldControls = c.editsHeldControls();
+    try (var change = undo.begin()) {
       switch (c.type()) {
         case "gpuReport" -> {
           var report = dev.visualengine.export.GpuReport.document(window.capabilities(), null);
@@ -593,7 +598,7 @@ public final class Engine implements AutoCloseable {
         }
         case "morphBlend" -> {
           Settings candidate = morph.blend(settings, ((Number) c.value()).doubleValue());
-          remember();
+          change.remember(settings);
           settings = candidate;
         }
         case "pause" -> {
@@ -610,60 +615,91 @@ public final class Engine implements AutoCloseable {
           status("Engine shaders reloaded");
         }
         case "parameter" -> {
-          remember();
+          change.remember(settings);
           var e = (Command.Edit) c.value();
           settings.set(e.id(), e.value());
         }
         case "palette" -> {
-          remember();
+          change.remember(settings);
           settings.palette = (int) c.value();
         }
-        case "debug" -> settings.debug = (int) c.value();
+        case "debug" -> {
+          change.remember(settings);
+          settings.debug = (int) c.value();
+        }
         case "seed" -> {
-          remember();
+          change.remember(settings, true);
           settings.seed = (long) c.value();
           reset = true;
         }
         case "recipe" -> {
-          remember();
+          change.remember(settings, true);
           dev.visualengine.model.Recipes.apply(settings, (Settings.Recipe) c.value());
           reset = true;
           if (controls != null) controls.sync(settings);
         }
-        case "feedbackEnabled" -> settings.feedbackEnabled = (boolean) c.value();
-        case "pigmentEnabled" -> settings.pigmentEnabled = (boolean) c.value();
-        case "reactionEnabled" -> settings.reactionEnabled = (boolean) c.value();
-        case "particlesEnabled" -> settings.particlesEnabled = (boolean) c.value();
+        case "feedbackEnabled" -> {
+          change.remember(settings);
+          settings.feedbackEnabled = (boolean) c.value();
+        }
+        case "pigmentEnabled" -> {
+          change.remember(settings);
+          settings.pigmentEnabled = (boolean) c.value();
+        }
+        case "reactionEnabled" -> {
+          change.remember(settings);
+          settings.reactionEnabled = (boolean) c.value();
+        }
+        case "particlesEnabled" -> {
+          change.remember(settings);
+          settings.particlesEnabled = (boolean) c.value();
+        }
         case "grid" -> {
+          change.remember(settings);
           settings.grid = ((Number) c.value()).intValue();
           reset = true;
         }
         case "quality" -> {
           var profile = (dev.visualengine.model.QualityProfile) c.value();
           Settings candidate = profile.apply(settings);
-          remember();
+          change.remember(settings);
           reset |= profile.resets(settings);
           settings = candidate;
           if (controls != null) controls.sync(settings);
         }
         case "particles" -> {
+          change.remember(settings);
           settings.particles = ((Number) c.value()).intValue();
           reset = true;
         }
         case "historyLayers" -> {
+          change.remember(settings);
           settings.historyLayers = ((Number) c.value()).intValue();
           reset = true;
         }
         case "speed" -> {
+          change.remember(settings);
           settings.speed = ((Number) c.value()).doubleValue();
           discardElapsed = true;
         }
-        case "displayScale" -> settings.displayScale = ((Number) c.value()).doubleValue();
-        case "loopSeconds" -> settings.loopSeconds = ((Number) c.value()).doubleValue();
-        case "tileMode" -> settings.tileMode = (boolean) c.value();
-        case "tilePreview" -> settings.tilePreview = (boolean) c.value();
+        case "displayScale" -> {
+          change.remember(settings);
+          settings.displayScale = ((Number) c.value()).doubleValue();
+        }
+        case "loopSeconds" -> {
+          change.remember(settings);
+          settings.loopSeconds = ((Number) c.value()).doubleValue();
+        }
+        case "tileMode" -> {
+          change.remember(settings);
+          settings.tileMode = (boolean) c.value();
+        }
+        case "tilePreview" -> {
+          change.remember(settings);
+          settings.tilePreview = (boolean) c.value();
+        }
         case "modulations" -> {
-          remember();
+          change.remember(settings);
           settings.modulations = new ArrayList<>((List<Modulation>) c.value());
         }
         case "record" -> {
@@ -703,23 +739,24 @@ public final class Engine implements AutoCloseable {
           if (controls != null) controls.sync(settings);
         }
         case "lock" -> {
+          change.remember(settings);
           var entry = (Map.Entry<?, ?>) c.value();
           if ((boolean) entry.getValue()) settings.locks.add((String) entry.getKey());
           else settings.locks.remove(entry.getKey());
         }
         case "undo" -> {
-          if (!undo.isEmpty()) {
-            Settings restored = undo.pop();
-            reset |=
-                restored.grid != settings.grid
-                    || restored.particles != settings.particles
-                    || restored.historyLayers != settings.historyLayers;
-            settings = restored;
-            if (controls != null) controls.sync(settings);
+          var restored = change.undo(settings);
+          if (restored.isEmpty()) {
+            status("Nothing to undo");
+            return;
           }
+          reset |= restored.get().restart();
+          resolveHeldControls = restored.get().resolveHeldControls();
+          settings = restored.get().settings();
+          if (controls != null) controls.sync(settings);
         }
         case "randomSeed", "randomPalette", "randomMotion", "randomComposition" -> {
-          remember();
+          change.remember(settings);
           Random random = new Random(System.nanoTime());
           if (c.type().equals("randomSeed")) settings.seed = random.nextLong();
           else if (c.type().equals("randomPalette")) settings.palette = random.nextInt(4);
@@ -752,7 +789,7 @@ public final class Engine implements AutoCloseable {
             enqueueIO(() -> submit(new Command("loaded", PresetIO.load((Path) c.value()))));
         case "loaded" -> {
           sourceDiscovery = null;
-          remember();
+          change.remember(settings, true);
           settings = (Settings) c.value();
           reset = true;
           if (controls != null) controls.sync(settings);
@@ -860,11 +897,12 @@ public final class Engine implements AutoCloseable {
         }
         case "discoveryLoaded" -> {
           var candidate = (Command.DiscoveryActivation) c.value();
+          change.remember(settings, true);
           candidate.settings().validate();
           dev.visualengine.authoring.EffectPackage.resolveResources(candidate.settings());
           renderer.configure(candidate.settings());
-          remember();
           settings = candidate.settings();
+          change.commit(settings);
           sourceDiscovery = candidate.id();
           playbackLog = null;
           recording = false;
@@ -893,14 +931,14 @@ public final class Engine implements AutoCloseable {
           return;
         }
         case "effectValue" -> {
-          remember();
+          change.remember(settings);
           var edit = (Command.EffectEdit) c.value();
           settings.setEffectValue(edit.id(), edit.value());
           if (settings.effectControl(edit.id()).update()
               == dev.visualengine.authoring.EffectControl.Update.RESET) reset = true;
         }
         case "effectControls" -> {
-          remember();
+          change.remember(settings);
           var controls =
               ((java.util.List<?>) c.value())
                   .stream().map(dev.visualengine.authoring.EffectControl.class::cast).toList();
@@ -910,10 +948,11 @@ public final class Engine implements AutoCloseable {
                 && settings.effectValues.get(control.id()).size() == control.type().width)
               retained.put(control.id(), settings.effectValues.get(control.id()));
           settings.installEffectControls(controls, retained);
+          reset |= dev.visualengine.model.SceneHistory.requiresRestart(before, settings);
           if (this.controls != null) this.controls.sync(settings);
         }
         case "expression" -> {
-          remember();
+          change.remember(settings);
           dev.visualengine.authoring.EffectControl.compileField(
               (String) c.value(), settings.effectControls);
           settings.expression = (String) c.value();
@@ -921,7 +960,7 @@ public final class Engine implements AutoCloseable {
           settings.recipe = Settings.Recipe.CUSTOM;
         }
         case "graph" -> {
-          remember();
+          change.remember(settings);
           var g = (dev.visualengine.authoring.EffectGraph) c.value();
           var compiled =
               dev.visualengine.authoring.GraphCompiler.compile(g, settings.effectControls);
@@ -940,7 +979,7 @@ public final class Engine implements AutoCloseable {
                             dev.visualengine.authoring.EffectPackage.load((Path) c.value()))));
         case "effectLoaded" -> {
           sourceDiscovery = null;
-          remember();
+          change.remember(settings, true);
           ((dev.visualengine.authoring.EffectPackage) c.value()).apply(settings);
           reset = true;
           if (controls != null) controls.sync(settings);
@@ -963,7 +1002,27 @@ public final class Engine implements AutoCloseable {
       }
       settings.validate();
       dev.visualengine.authoring.EffectPackage.resolveResources(settings);
+      ControlSignals.State held =
+          ((settings.paused || settings.speed == 0) && resolveHeldControls
+                  || c.type().equals("effectControls"))
+              ? signals.prepareSnap(settings, clock.seconds())
+              : null;
+      ReplayLog.PreparedControl recorded =
+          recording
+                  && recordingLog != null
+                  && !c.type().equals("record")
+                  && !c.type().equals("saveReplay")
+              ? recordingLog.prepareControl(clock.tick() + 1, settings)
+              : null;
       renderer.configure(settings);
+      if (held != null) signals.restore(held, settings);
+      if (recorded != null) recorded.commit();
+      change.commit(settings);
+      if (c.type().equals("undo") && playbackLog != null) {
+        playbackLog = null;
+        replayBrush = false;
+        status("Controls restored; replay stopped");
+      }
       if (c.type().equals("morphBlend")) {
         boolean stoppedReplay = playbackLog != null;
         playbackLog = null;
@@ -986,16 +1045,20 @@ public final class Engine implements AutoCloseable {
                 + (reset ? "; simulation restarted" : "; state preserved")
                 + (stoppedReplay ? "; replay stopped" : ""));
       }
-      if ((settings.paused || settings.speed == 0) && c.editsHeldControls()
-          || c.type().equals("effectControls")) signals.snap(settings, clock.seconds());
-      if (recording
-          && recordingLog != null
-          && !c.type().equals("record")
-          && !c.type().equals("saveReplay")) recordingLog.recordControl(clock.tick() + 1, settings);
       refreshMorph();
     } catch (Exception e) {
       sourceDiscovery = sourceBefore;
       reset = resetBefore;
+      step = stepBefore;
+      freeze = freezeBefore;
+      discardElapsed = elapsedBefore;
+      playbackLog = playbackBefore;
+      if (playbackBefore != null) playbackBefore.restoreCursor(cursorBefore);
+      recordingLog = recordingLogBefore;
+      recording = recordingBefore;
+      replayBrush = brushBefore;
+      replayX = xBefore;
+      replayY = yBefore;
       settings = before;
       if (controls != null) controls.sync(settings);
       refreshMorph();

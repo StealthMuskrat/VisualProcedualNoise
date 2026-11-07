@@ -100,6 +100,11 @@ public final class SceneHistoryChecks {
     phaseOnly.motionClock = 3;
     remember(history, palette(0), phaseOnly);
     check(history.size() == 0, "phase clocks are not configuration history");
+    Settings locks = palette(0);
+    Settings.PARAMETERS.forEach(parameter -> locks.locks.add(parameter.id()));
+    locks.locks.retainAll(Set.of("scale", "motion", "agitation"));
+    remember(history, locks, locks.copy());
+    check(history.size() == 0, "lock sets retain semantic equality after growth and copying");
     try (var change = history.begin()) {
       check(change.undo(palette(0)).isEmpty(), "empty undo is explicitly available as a no-op");
       change.commit(palette(0));

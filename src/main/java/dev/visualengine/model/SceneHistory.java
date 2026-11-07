@@ -64,6 +64,15 @@ public final class SceneHistory {
     return false;
   }
 
+  private static boolean sameConfiguration(Settings a, Settings b) {
+    if (!a.locks.equals(b.locks)) return false;
+    var left = PresetIO.JSON.toJsonTree(a).getAsJsonObject();
+    var right = PresetIO.JSON.toJsonTree(b).getAsJsonObject();
+    left.remove("locks");
+    right.remove("locks");
+    return left.equals(right);
+  }
+
   public static boolean controlsDiffer(Settings from, Settings to) {
     return !from.values.equals(to.values)
         || !from.effectValues.equals(to.effectValues)
@@ -112,10 +121,7 @@ public final class SceneHistory {
 
     public void commit(Settings accepted) {
       requireActive();
-      if (pending != null
-          && !PresetIO.JSON
-              .toJsonTree(pending.settings())
-              .equals(PresetIO.JSON.toJsonTree(accepted))) {
+      if (pending != null && !sameConfiguration(pending.settings(), accepted)) {
         entries.addFirst(pending);
         while (entries.size() > capacity) entries.removeLast();
       } else if (restoring != null) entries.removeFirst();

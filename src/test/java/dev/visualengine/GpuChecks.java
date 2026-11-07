@@ -67,6 +67,7 @@ public final class GpuChecks {
   }
 
   public static void main(String[] args) throws Exception {
+    String device;
     try (Window window = new Window(96, 64, true);
         Renderer renderer = new Renderer(new ShaderSources(null))) {
       window.applyPresentation(new dev.visualengine.platform.Presentation(true, 60));
@@ -297,8 +298,10 @@ public final class GpuChecks {
       count += PausedRedrawGpuChecks.run(window);
       reloadFailure(window);
       check(glGetError() == GL_NO_ERROR, "no final GL error");
-      System.out.println("GPU checks passed: " + count + " | " + glGetString(GL_RENDERER));
+      device = glGetString(GL_RENDERER);
     }
+    count += EngineUndoGpuChecks.run();
+    System.out.println("GPU checks passed: " + count + " | " + device);
   }
 
   private static void morphs() {
