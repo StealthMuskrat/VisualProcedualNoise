@@ -266,62 +266,38 @@ public final class TextureMap {
     if (text.getBytes(StandardCharsets.UTF_8).length > 1_048_576)
       throw new IOException("Map metadata exceeds 1 MiB");
     PresetIO.parse(text);
-    Path target = path.toAbsolutePath(), sidecar = Path.of(target + ".json");
-    Files.createDirectories(target.getParent());
-    for (Path destination : List.of(target, sidecar))
-      if (Files.exists(destination, LinkOption.NOFOLLOW_LINKS)
-          && !Files.isRegularFile(destination, LinkOption.NOFOLLOW_LINKS))
-        throw new IOException(
-            "Map destination is not a regular file: " + destination.getFileName());
-    Path png = Files.createTempFile(target.getParent(), ".texture-map-", ".png");
-    Path json = null;
-    try {
-      json = Files.createTempFile(target.getParent(), ".texture-map-", ".json");
-      var writers = ImageIO.getImageWritersByFormatName("png");
-      if (!writers.hasNext()) throw new IOException("PNG writer unavailable");
-      ImageWriter writer = writers.next();
-      try (var output = ImageIO.createImageOutputStream(png.toFile())) {
-        writer.setOutput(output);
-        var parameter = writer.getDefaultWriteParam();
-        var metadata =
-            writer.getDefaultImageMetadata(
-                ImageTypeSpecifier.createFromRenderedImage(encoded.image()), parameter);
-        var tree = (IIOMetadataNode) metadata.getAsTree(PNG_METADATA);
-        for (String name : List.of("sRGB", "gAMA", "iCCP", "cHRM")) {
-          var nodes = tree.getElementsByTagName(name);
-          for (int i = nodes.getLength() - 1; i >= 0; i--) tree.removeChild(nodes.item(i));
-        }
-        IIOMetadataNode texts = new IIOMetadataNode("iTXt"),
-            entry = new IIOMetadataNode("iTXtEntry");
-        entry.setAttribute("keyword", KEYWORD);
-        entry.setAttribute("compressionFlag", "FALSE");
-        entry.setAttribute("compressionMethod", "0");
-        entry.setAttribute("languageTag", "");
-        entry.setAttribute("translatedKeyword", "");
-        entry.setAttribute("text", text);
-        texts.appendChild(entry);
-        tree.appendChild(texts);
-        metadata.setFromTree(PNG_METADATA, tree);
-        writer.write(null, new IIOImage(encoded.image(), null, metadata), parameter);
-      } finally {
-        writer.dispose();
-      }
-      Files.writeString(json, text);
-      publish(png, target);
-      publish(json, sidecar);
-      return encoded.clippedSamples();
-    } finally {
-      Files.deleteIfExists(png);
-      if (json != null) Files.deleteIfExists(json);
-    }
+    OutputPair.write(path, text, png -> writePng(png, encoded, text));
+    return encoded.clippedSamples();
   }
 
-  private static void publish(Path temporary, Path target) throws IOException {
-    try {
-      Files.move(
-          temporary, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-    } catch (AtomicMoveNotSupportedException e) {
-      Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
+  private static void writePng(Path png, Encoded encoded, String text) throws IOException {
+    var writers = ImageIO.getImageWritersByFormatName("png");
+    if (!writers.hasNext()) throw new IOException("PNG writer unavailable");
+    ImageWriter writer = writers.next();
+    try (var output = ImageIO.createImageOutputStream(png.toFile())) {
+      writer.setOutput(output);
+      var parameter = writer.getDefaultWriteParam();
+      var metadata =
+          writer.getDefaultImageMetadata(
+              ImageTypeSpecifier.createFromRenderedImage(encoded.image()), parameter);
+      var tree = (IIOMetadataNode) metadata.getAsTree(PNG_METADATA);
+      for (String name : List.of("sRGB", "gAMA", "iCCP", "cHRM")) {
+        var nodes = tree.getElementsByTagName(name);
+        for (int i = nodes.getLength() - 1; i >= 0; i--) tree.removeChild(nodes.item(i));
+      }
+      IIOMetadataNode texts = new IIOMetadataNode("iTXt"), entry = new IIOMetadataNode("iTXtEntry");
+      entry.setAttribute("keyword", KEYWORD);
+      entry.setAttribute("compressionFlag", "FALSE");
+      entry.setAttribute("compressionMethod", "0");
+      entry.setAttribute("languageTag", "");
+      entry.setAttribute("translatedKeyword", "");
+      entry.setAttribute("text", text);
+      texts.appendChild(entry);
+      tree.appendChild(texts);
+      metadata.setFromTree(PNG_METADATA, tree);
+      writer.write(null, new IIOImage(encoded.image(), null, metadata), parameter);
+    } finally {
+      writer.dispose();
     }
   }
 }

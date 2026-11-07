@@ -6,6 +6,7 @@ import dev.visualengine.model.Settings;
 import dev.visualengine.presets.PresetIO;
 import java.awt.image.BufferedImage;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import javax.imageio.ImageIO;
 import org.lwjgl.system.MemoryUtil;
@@ -100,16 +101,6 @@ public final class Capture {
   public static void write(
       Path path, BufferedImage image, Settings settings, long tick, String device, View view)
       throws IOException {
-    Path target = path.toAbsolutePath();
-    Files.createDirectories(target.getParent());
-    Path temp = Files.createTempFile(target.getParent(), ".capture-", ".png");
-    try {
-      if (!ImageIO.write(image, "png", temp.toFile()))
-        throw new IOException("PNG encoder unavailable");
-      Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
-    } finally {
-      Files.deleteIfExists(temp);
-    }
     var doc = PresetIO.document(settings, tick);
     doc.addProperty("device", device);
     doc.addProperty("captureEncoding", "sRGB SDR opaque RGB top-left origin");
@@ -124,6 +115,16 @@ public final class Capture {
         dev.visualengine.model.QualityProfile.matching(settings)
             .map(p -> p.name().toLowerCase(java.util.Locale.ROOT))
             .orElse("custom"));
-    PresetIO.atomicWrite(Path.of(target + ".json"), PresetIO.JSON.toJson(doc));
+    String text = PresetIO.JSON.toJson(doc);
+    if (text.getBytes(StandardCharsets.UTF_8).length > 1_048_576)
+      throw new IOException("Capture metadata exceeds 1 MiB");
+    PresetIO.parse(text);
+    OutputPair.write(
+        path,
+        text,
+        staged -> {
+          if (!ImageIO.write(image, "png", staged.toFile()))
+            throw new IOException("PNG encoder unavailable");
+        });
   }
 }

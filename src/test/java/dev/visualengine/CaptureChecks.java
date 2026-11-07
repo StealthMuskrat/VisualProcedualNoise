@@ -6,6 +6,7 @@ import dev.visualengine.export.*;
 import dev.visualengine.model.*;
 import dev.visualengine.presets.PresetIO;
 import java.awt.image.BufferedImage;
+import java.io.IOException;
 import java.nio.file.*;
 import java.util.*;
 import javax.imageio.ImageIO;
@@ -26,6 +27,20 @@ public final class CaptureChecks {
       return;
     }
     throw new AssertionError("Accepted invalid capture input");
+  }
+
+  private interface Write {
+    void run() throws IOException;
+  }
+
+  private static void fails(Write action) throws IOException {
+    try {
+      action.run();
+    } catch (IOException | IllegalArgumentException expected) {
+      count++;
+      return;
+    }
+    throw new AssertionError("Accepted invalid artwork save");
   }
 
   public static int run() throws Exception {
@@ -71,6 +86,45 @@ public final class CaptureChecks {
       check(
           decoded.getRGB(0, 0) == 0xff123456 && decoded.getRGB(95, 63) == 0xffabcdef,
           "PNG color and top-left orientation survive spaced Unicode file paths");
+      Path sidecar = Path.of(file + ".json");
+      byte[] previous = Files.readAllBytes(file), previousMetadata = Files.readAllBytes(sidecar);
+      image.setRGB(0, 0, 0xff556677);
+      Settings invalid = s.copy();
+      invalid.grid = 1;
+      fails(() -> Capture.write(file, image, invalid, 78, "test GPU"));
+      check(
+          Arrays.equals(previous, Files.readAllBytes(file))
+              && Arrays.equals(previousMetadata, Files.readAllBytes(sidecar)),
+          "invalid capture metadata is rejected before either destination changes");
+      fails(() -> Capture.write(file, image, s, 78, "x".repeat(1_048_576)));
+      check(
+          Arrays.equals(previous, Files.readAllBytes(file))
+              && Arrays.equals(previousMetadata, Files.readAllBytes(sidecar)),
+          "oversized UTF-8 capture metadata preserves the previous pair");
+      Files.delete(sidecar);
+      Files.createDirectory(sidecar);
+      Files.writeString(sidecar.resolve("marker"), "keep");
+      fails(() -> Capture.write(file, image, s, 78, "test GPU"));
+      check(
+          Arrays.equals(previous, Files.readAllBytes(file))
+              && Files.readString(sidecar.resolve("marker")).equals("keep"),
+          "blocked artwork sidecar preserves the prior image and occupied directory");
+      Files.delete(sidecar.resolve("marker"));
+      Files.delete(sidecar);
+      Capture.write(file, image, s, 79, "test GPU");
+      check(
+          ImageIO.read(file.toFile()).getRGB(0, 0) == 0xff556677
+              && JsonParser.parseString(Files.readString(sidecar))
+                      .getAsJsonObject()
+                      .get("referenceTick")
+                      .getAsLong()
+                  == 79,
+          "successful artwork overwrite commits the new image and matching metadata");
+      try (var files = Files.list(root)) {
+        check(
+            files.noneMatch(p -> p.getFileName().toString().startsWith(".visual-output-")),
+            "artwork writer cleans paired staging after successful and rejected saves");
+      }
     } finally {
       try (var paths = Files.walk(root)) {
         for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) Files.delete(path);

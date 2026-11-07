@@ -144,6 +144,27 @@ public final class TextureMapChecks {
                   TextureMap.Kind.MASK, size, new TextureMap.Range(0, 1), new byte[4]),
           "wrong readback size");
       values.putFloat(0, 0);
+      Path occupiedSidecar = Path.of(existing + ".json");
+      Files.delete(occupiedSidecar);
+      Files.createDirectory(occupiedSidecar);
+      Files.writeString(occupiedSidecar.resolve("marker"), "keep");
+      rejects(
+          () -> TextureMap.write(existing, clipped, s, 78, "test", "a".repeat(64)),
+          "occupied map sidecar");
+      check(
+          Arrays.equals(before, Files.readAllBytes(existing))
+              && Files.readString(occupiedSidecar.resolve("marker")).equals("keep"),
+          "blocked map sidecar preserves the existing PNG and directory");
+      Files.delete(occupiedSidecar.resolve("marker"));
+      Files.delete(occupiedSidecar);
+      TextureMap.write(existing, clipped, s, 79, "test", "a".repeat(64));
+      check(
+          JsonParser.parseString(Files.readString(occupiedSidecar))
+                  .getAsJsonObject()
+                  .get("referenceTick")
+                  .getAsLong()
+              == 79,
+          "successful map overwrite commits matching metadata");
       Path blocked = root.resolve("blocked.png");
       Files.createDirectory(blocked);
       rejects(
@@ -151,7 +172,10 @@ public final class TextureMapChecks {
           "occupied map destination");
       try (var files = Files.list(root)) {
         check(
-            files.noneMatch(p -> p.getFileName().toString().startsWith(".texture-map-")),
+            files.noneMatch(
+                p ->
+                    p.getFileName().toString().startsWith(".texture-map-")
+                        || p.getFileName().toString().startsWith(".visual-output-")),
             "map writer cleans temporary files");
       }
     } finally {
