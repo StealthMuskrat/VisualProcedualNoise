@@ -207,6 +207,7 @@ public final class CoreChecks {
     count += PresentationChecks.run();
     count += PresentationUiChecks.run();
     count += DesktopChecks.run();
+    count += DeviceChecks.run();
     System.out.println("Core checks passed: " + count);
   }
 
