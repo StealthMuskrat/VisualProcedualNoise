@@ -215,6 +215,7 @@ public final class CoreChecks {
     count += FileJobsChecks.run();
     count += EffectModulationChecks.run();
     count += ModulationUiChecks.run();
+    count += RedrawChecks.run();
     System.out.println("Core checks passed: " + count);
   }
 

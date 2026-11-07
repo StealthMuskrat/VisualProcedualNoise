@@ -4,6 +4,48 @@ import java.util.*;
 import java.util.function.Consumer;
 
 public record Command(String type, Object value) {
+  private static final Set<String> NON_RENDERING =
+      Set.of(
+          "gpuReport",
+          "presentationSaved",
+          "morphCapture",
+          "morphLoad",
+          "morphLoaded",
+          "stopRecord",
+          "saveReplay",
+          "loadReplay",
+          "lock",
+          "save",
+          "load",
+          "loadCheckpoint",
+          "discoveryScan",
+          "discoveryThumbnails",
+          "annotateDiscovery",
+          "loadDiscovery",
+          "discoveryReference",
+          "importEffect",
+          "exportEffect");
+  private static final Set<String> HELD_CONTROL_EDITS =
+      Set.of(
+          "parameter",
+          "effectValue",
+          "modulations",
+          "effectControls",
+          "morphBlend",
+          "randomMotion",
+          "randomComposition",
+          "undo");
+
+  /** Unknown future actions conservatively request a frame. */
+  public boolean needsFrame() {
+    return type == null || !NON_RENDERING.contains(type);
+  }
+
+  /** File/status/presentation actions must not settle unfinished control smoothing. */
+  public boolean editsHeldControls() {
+    return type != null && HELD_CONTROL_EDITS.contains(type);
+  }
+
   public record PresentationSaved(dev.visualengine.platform.Presentation value, String failure) {}
 
   /** Coalesce adjacent edits, preserving action boundaries such as endpoint captures and undo. */
