@@ -1,16 +1,18 @@
 # Verification status
 
-Recorded November 6 2026. Source implementation includes the renderer, sixteen recipes, inspector, persistence, fixed-tick simulations, authoring, replay, export and Windows app-image build path. Windows release acceptance remains pending physical-device validation.
+Recorded November 7 2026. Source implementation includes the renderer, sixteen recipes, inspector, persistence, fixed-tick simulations, authoring, replay, export and Windows app-image build path. Windows release acceptance remains pending physical-device validation.
 
 ## Local results
 
 | Check | Result |
 | --- | --- |
 | Java 25 compilation and distribution assembly | Passed with Temurin 25.0.5+8 |
-| JVM contracts | 466 passed: parsing, types, bounds, graph cycles and pruning, seeds, preset migrations, modulation, clocks, replay, custom controls, hashes, typed groups, checkpoint archives, quality profiles, still metadata, discovery integrity/branching/gallery, 16-bit map encoding/metadata/UI, morph compatibility/interpolation/phases/command ordering/UI, directional formulas/effects/hashes/UI, seam/loop metrics/context/UI, benchmark attribution/percentiles/workloads/CLI, presentation preference/migration/deadline/UI contracts, desktop placement/input/suspension, device capability/limit/report contracts, bounded diagnostic retention, material-cache ownership/LRU/transactions, framed source identity, bounded includes and memory limits |
-| OpenGL contracts | 170 passed on Mesa llvmpipe, OpenGL 4.5 core, Mesa 25.2.8, LLVM 20.1.2 |
+| JVM contracts | 485 passed: parsing, types, bounds, graph cycles and pruning, seeds, preset migrations, modulation, clocks, replay, custom controls, hashes, typed groups, checkpoint archives, quality profiles, still metadata, discovery integrity/branching/gallery, 16-bit map encoding/metadata/UI, morph compatibility/interpolation/phases/command ordering/UI, directional formulas/effects/hashes/UI, seam/loop metrics/context/UI, benchmark attribution/percentiles/workloads/CLI, presentation preference/migration/deadline/UI contracts, desktop placement/input/suspension, device capability/limit/report contracts, bounded diagnostic retention, material-cache ownership/LRU/transactions, framed source identity, bounded includes, checked allocation peaks, overflow and memory limits |
+| OpenGL contracts | 200 passed on Mesa llvmpipe, OpenGL 4.5 core, Mesa 25.2.8, LLVM 20.1.2 |
 | Authoring behavior | Custom values change the image without relinking; encapsulating seeded graphs preserves their rendered output; typed group expressions link and render |
 | Recipe coverage | All sixteen recipes compiled and rendered; generated gallery includes PNGs and complete sidecars |
+| GPU allocation transactions | Small synthetic budgets rejected simulation, display, still, map, checkpoint and reference peaks whose settled storage would fit. Failures preserved program, image, reference and every GPU state byte. Candidate shader failure restored allocation bindings and discarded partial textures; successful replacement and staged restore matched predicted storage |
+| Installed allocation reports | Replay with and without a temporary RGB map produced identical PNGs, clocks, replay cursor and every GPU resource. Reports matched exact RGBA32F temporary storage and peak/settled arithmetic; a map requiring 512 MiB alongside live storage failed before allocation and preserved its existing image and metadata |
 | Material shader cache | Actual linked programs were reused across effect switches; numeric edits performed no lookup. Reused uniforms matched a fresh restored scene, maps did not leak output mode, and native deletion requests followed bounded LRU eviction. Candidate resource failure, broken source and early/late F5 failures preserved the working image, cache generation and GPU state |
 | Installed shader switching | Retained and active-only replay runs reproduced identical PNGs, clocks, smoothing, replay and every GPU resource. Cross-policy checkpoint continuation matched an uninterrupted run; invalid options and oversized development shader files preserved their destinations. Lookup/build counters verified skipped material compilations without a timing-speedup claim |
 | Device capabilities and preflight | Real format/indexed/64-bit queries agreed with the context snapshot and preserved GL bindings. Worker access was rejected. A renderer with constrained advertised limits rejected grid, history, particle, still, map and viewport requests while preserving its program, finished image, tracked memory and every GPU state byte |
@@ -84,6 +86,8 @@ Before public release, run the specification's matrix on physical Windows machin
 The installed Linux script launcher was exercised with replay exports. A native Linux app image was built, but its launcher could not be validated in this sandbox because the process filesystem is unavailable. Linux app images are outside the Windows distribution target.
 
 ## Scope of this release
+
+Version 0.15 adds [checked peak GPU allocation accounting](ALLOCATION_BUDGETS.md), old/candidate overlap preflight, candidate binding restoration and allocation diagnostics. Stills and maps use the same checked planner. The budget is tracked texture/buffer storage, not physical VRAM or a driver-allocation guarantee. Creative formats remain unchanged; checkpoints keep exact engine-version/source checks.
 
 Version 0.14 adds [bounded linked material reuse](SHADER_CACHE.md), owner-thread candidate transactions, fresh reload generations, source-expansion bounds, a session-only active-program policy and diagnostic counters. Program fingerprints now use stage-tagged UTF-8 length framing; presets/effects/replay remain compatible and checkpoints keep exact engine-version/source checks. The implementation verifies program reuse and unchanged output, without claiming measured Windows editing speedups or asynchronous compilation.
 

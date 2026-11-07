@@ -14,6 +14,8 @@ Select a preset in the Quality tab, review its resolved settings and estimated s
 
 Display buffers and a frozen A/B reference add to these values. These profiles are starting points, not measured hardware performance tiers. The 512 MiB engine budget remains enforced.
 
+Replacement also needs room for the old and new resources at the same time. The engine checks this peak before constructing the candidate; a settled scene that fits can still require too much temporary overlap. See [allocation plans and diagnostic fields](ALLOCATION_BUDGETS.md).
+
 Quality changes preserve seed, creative parameters, locks, modulation, custom control definitions and embedded graph groups. Changing the grid, particle count or history layout restarts persistent state and its clock, including when undoing a quality change. A display-scale-only change preserves simulation state. Applying a named preset stops an active replay so future recorded controls cannot silently overwrite the choice. A running recording follows the existing reset/new-take behavior when its state layout changes.
 
 ```powershell

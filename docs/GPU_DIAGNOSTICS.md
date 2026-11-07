@@ -1,5 +1,7 @@
 # GPU capability checks and diagnostics
 
+Version 0.15 renderer reports also include checked allocation plans and the largest allowed storage peak. See [allocation fields and their limits](ALLOCATION_BUDGETS.md#diagnostic-fields). Standalone `--diagnose-gpu` does not allocate a renderer.
+
 Version 0.13 queries the active OpenGL device before creating the engine's shader programs and scene resources. It checks the operations this backend uses, records the advertised limits and formats, and rejects oversized resource requests before replacing the working scene. The Windows target and OpenGL 4.3 baseline are unchanged.
 
 ## Save a report
