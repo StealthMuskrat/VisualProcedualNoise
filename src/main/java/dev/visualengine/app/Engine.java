@@ -947,8 +947,8 @@ public final class Engine implements AutoCloseable {
                 + (reset ? "; simulation restarted" : "; state preserved")
                 + (stoppedReplay ? "; replay stopped" : ""));
       }
-      if (settings.paused && !c.type().equals("quality") || c.type().equals("effectControls"))
-        signals.snap(settings);
+      if (settings.paused && !Set.of("quality", "pause", "step").contains(c.type())
+          || c.type().equals("effectControls")) signals.snap(settings, clock.seconds());
       if (recording
           && recordingLog != null
           && !c.type().equals("record")

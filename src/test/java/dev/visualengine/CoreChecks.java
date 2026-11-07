@@ -214,6 +214,7 @@ public final class CoreChecks {
     count += dev.visualengine.export.OutputPairChecks.run();
     count += FileJobsChecks.run();
     count += EffectModulationChecks.run();
+    count += ModulationUiChecks.run();
     System.out.println("Core checks passed: " + count);
   }
 

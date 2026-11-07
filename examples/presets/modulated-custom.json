@@ -1,0 +1,199 @@
+{
+  "schemaVersion": 5,
+  "engineVersion": "0.18.0",
+  "algorithmRevision": "gradient-v1-simulation-v2",
+  "rootSeed": "173496285120",
+  "statePolicy": "restart",
+  "referenceTick": 0,
+  "fixedTickSeconds": 0.008333333333333333,
+  "settings": {
+    "name": "Modulated custom field",
+    "recipe": "CUSTOM",
+    "palette": 0,
+    "debug": 0,
+    "grid": 65,
+    "particles": 257,
+    "historyLayers": 3,
+    "speed": 1.0,
+    "displayScale": 1.0,
+    "loopSeconds": 0.0,
+    "tileMode": false,
+    "tilePreview": false,
+    "modulations": [
+      {
+        "id": "amplitude-wave",
+        "destination": "effect:amplitude",
+        "source": "SINE",
+        "mode": "REPLACE",
+        "period": 4.0,
+        "low": 0.2,
+        "high": 2.4,
+        "phase": 0.4,
+        "keys": [
+          0.0,
+          0.2,
+          0.3,
+          1.0,
+          0.7,
+          0.4,
+          1.0,
+          0.7
+        ]
+      },
+      {
+        "id": "offset-x-wave",
+        "destination": "effect:offset.x",
+        "source": "TRIANGLE",
+        "mode": "REPLACE",
+        "period": 2.0,
+        "low": -0.8,
+        "high": 0.8,
+        "phase": 0.25,
+        "keys": [
+          0.0,
+          0.2,
+          0.3,
+          1.0,
+          0.7,
+          0.4,
+          1.0,
+          0.7
+        ]
+      },
+      {
+        "id": "offset-y-track",
+        "destination": "effect:offset.y",
+        "source": "KEYFRAMES",
+        "mode": "ADD",
+        "period": 0.6,
+        "low": -0.2,
+        "high": 0.4,
+        "phase": 0.0,
+        "keys": [
+          0.0,
+          0.2,
+          0.3,
+          1.0,
+          0.7,
+          0.4,
+          1.0,
+          0.7
+        ]
+      },
+      {
+        "id": "color-macro",
+        "destination": "colorRate",
+        "source": "MACRO",
+        "mode": "REPLACE",
+        "period": 8.0,
+        "low": 0.02,
+        "high": 0.08,
+        "phase": 0.0,
+        "keys": [
+          0.0,
+          0.2,
+          0.3,
+          1.0,
+          0.7,
+          0.4,
+          1.0,
+          0.7
+        ]
+      }
+    ],
+    "paused": false,
+    "feedbackEnabled": true,
+    "pigmentEnabled": true,
+    "reactionEnabled": false,
+    "particlesEnabled": false,
+    "graphEnabled": false,
+    "effectControls": [
+      {
+        "id": "amplitude",
+        "label": "Amplitude",
+        "type": "FLOAT",
+        "units": "domain",
+        "initial": [
+          1.0
+        ],
+        "minimum": 0.1,
+        "maximum": 3.0,
+        "step": 0.01,
+        "scale": "LOGARITHMIC",
+        "update": "SMOOTHED"
+      },
+      {
+        "id": "offset",
+        "label": "Domain offset",
+        "type": "VEC2",
+        "units": "domain",
+        "initial": [
+          0.2,
+          -0.1
+        ],
+        "minimum": -2.0,
+        "maximum": 2.0,
+        "step": 0.01,
+        "scale": "LINEAR",
+        "update": "UNIFORM"
+      }
+    ],
+    "effectValues": {
+      "amplitude": [
+        1.0
+      ],
+      "offset": [
+        0.2,
+        -0.1
+      ]
+    },
+    "graph": {
+      "id": "local.graph",
+      "version": "1.0.0",
+      "output": "field",
+      "groups": [],
+      "nodes": [
+        {
+          "id": "field",
+          "kind": "FORMULA",
+          "inputs": [],
+          "expression": "sin(length(p) * frequency - phase)",
+          "x": 70.0,
+          "y": 70.0,
+          "bypass": false,
+          "group": "",
+          "comment": "Radial field",
+          "template": "",
+          "seedKey": "field"
+        }
+      ]
+    },
+    "expression": "amplitude * sin(p.x * frequency + offset.x) + cos(p.y * stripeRate + offset.y)",
+    "values": {
+      "scale": 2.4,
+      "warp": 0.65,
+      "detail": 0.25,
+      "motion": 0.22,
+      "colorRate": 0.06,
+      "height": 0.45,
+      "exposure": 1.1,
+      "bloom": 0.15,
+      "flow": 0.35,
+      "decay": 0.12,
+      "injection": 2.0,
+      "feed": 0.0367,
+      "kill": 0.0649,
+      "feedback": 0.65,
+      "radius": 0.12,
+      "role": 0.0,
+      "historyMix": 0.35,
+      "frequency": 2.0,
+      "drift": 0.2,
+      "stripeRate": 4.0,
+      "agitation": 0.5
+    },
+    "locks": []
+  },
+  "referenceMotionClock": 0.0,
+  "referenceColorClock": 0.0
+}
