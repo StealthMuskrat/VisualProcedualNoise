@@ -58,6 +58,8 @@ Version 0.15 checks peak GPU storage while old and replacement resources coexist
 
 Version 0.16 stages artwork/map PNGs and metadata together, restores previous files after publication failures, and retains recovery copies if restoration fails. Captures validate metadata before changing output files. See [paired file publication and recovery limits](docs/OUTPUT_PUBLICATION.md).
 
+Version 0.17 makes file-worker draining, cancellation and backpressure explicit. Offline exports stop after the first file failure; shutdown reports unfinished work and still attempts graphics cleanup. Session reports include queue counters. See [file work and shutdown behavior](docs/FILE_WORK.md).
+
 Discovery bookmarks save artwork and its complete restarting configuration under the user-data directory. A/B comparison shows a frozen or saved finished frame on the left and the live scene on the right; this does not run two independent simulations. GPU storage is estimated before quality changes and capped at 512 MiB.
 
 ## Verification

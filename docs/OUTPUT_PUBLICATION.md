@@ -18,6 +18,8 @@ Two paths cannot be replaced as one atomic filesystem operation. Other readers c
 
 File work runs on the existing bounded worker. Offline exports apply backpressure and fail if a requested write fails; `sequence.json` is published only after successful frame output. Completed earlier frames remain. GPU readback, color encoding, map channels, settings and replay behavior retain their existing contracts. Preset schema 4, Effect API 2 and replay format 1 remain unchanged; checkpoints retain exact engine-version compatibility.
 
+See [file-worker draining and cancellation](FILE_WORK.md) for version 0.17 shutdown behavior. A timeout is an explicit failure; an active operation can still be finishing after interruption, so exception rollback does not become a process-termination guarantee.
+
 ## Verification
 
 Filesystem checks exercise existing and absent destinations, failures immediately before and after either publication rename, encoding failure, blocked destinations, symbolic links when supported, successful rollback and retained backups when rollback itself fails. Failures are injected at the move boundary while actual staging, copying, restoration and cleanup use the filesystem; exhausting a real disk is not required.

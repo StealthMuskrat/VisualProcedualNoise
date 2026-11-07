@@ -32,6 +32,8 @@ gradlew.bat run --args="--export frames --frames 240 --fps 24 --size 1280x800 --
 
 The first frame follows the requested warmup ticks. At 24 fps, successive frames advance five 120 Hz ticks. Output rates must divide 120. Frames use a half-open time interval, so a loop's final frame does not duplicate its first. Export is independent of wall-clock rendering speed. The encoding queue is bounded and applies backpressure; failed writes make the process fail. `sequence.json` is written after successful frame output.
 
+Version 0.17 cancels unstarted file jobs after the first offline failure and wakes blocked producers. Normal shutdown drains accepted work; timeout or interruption reports failure and cancellation instead of silently dropping queued output. See [file-worker lifecycle and diagnostic counters](FILE_WORK.md).
+
 On Windows an invisible native window uses the installed GPU driver. On Linux the offscreen development path uses GLFW's null platform and Mesa EGL. Escape or interruption cancels a running process; already-written files remain. Video encoding is not bundled.
 
 ## Tiles and loops
