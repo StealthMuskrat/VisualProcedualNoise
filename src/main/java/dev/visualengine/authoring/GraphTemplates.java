@@ -6,6 +6,30 @@ import java.util.*;
 public final class GraphTemplates {
   public record Input(String name, GraphCompiler.Port type) {}
 
+  public record Exposure(String nodeId, String name) {
+    @Override
+    public String toString() {
+      return name + " ← " + nodeId;
+    }
+  }
+
+  public static void validateExposures(List<Exposure> inputs) {
+    if (inputs == null || inputs.size() > 8)
+      throw new IllegalArgumentException("A group can expose at most eight inputs");
+    Set<String> names = new HashSet<>(), sources = new HashSet<>();
+    for (var input : inputs) {
+      if (input == null
+          || input.name() == null
+          || !input.name().matches("[A-Za-z][A-Za-z0-9_]{0,47}"))
+        throw new IllegalArgumentException(
+            "Input names need 1..48 letters, digits or underscores, starting with a letter");
+      if (!names.add(input.name()))
+        throw new IllegalArgumentException("Group input name already exists: " + input.name());
+      if (input.nodeId() == null || !sources.add(input.nodeId()))
+        throw new IllegalArgumentException("Expose each source node only once");
+    }
+  }
+
   public record Group(
       String id,
       String version,
@@ -231,29 +255,80 @@ public final class GraphTemplates {
 
   public static EffectGraph capture(
       EffectGraph graph, String id, String version, List<EffectControl> controls) {
-    GraphCompiler.compile(graph, controls);
+    return capture(graph, id, version, controls, List.of());
+  }
+
+  /** Capture a revision, replacing selected internal sources with typed named boundaries. */
+  public static EffectGraph capture(
+      EffectGraph graph,
+      String id,
+      String version,
+      List<EffectControl> controls,
+      List<Exposure> exposed) {
+    validateExposures(exposed);
+    var compiled = GraphCompiler.compile(graph, controls);
+    Map<String, EffectGraph.Node> original = new LinkedHashMap<>();
+    graph.nodes.forEach(node -> original.put(node.id(), node));
+    Map<String, Exposure> bindings = new LinkedHashMap<>();
+    List<Input> ports = new ArrayList<>();
+    for (var input : exposed) {
+      var type = compiled.types().get(input.nodeId());
+      if (!original.containsKey(input.nodeId()) || type == null)
+        throw new IllegalArgumentException(
+            "Input source must contribute to the active output: " + input.nodeId());
+      bindings.put(input.nodeId(), input);
+      ports.add(new Input(input.name(), type));
+    }
+    List<EffectGraph.Node> body = new ArrayList<>();
+    for (var node : graph.nodes) {
+      var binding = bindings.get(node.id());
+      body.add(
+          binding == null
+              ? node
+              : new EffectGraph.Node(
+                  node.id(),
+                  EffectGraph.Kind.INPUT,
+                  List.of(),
+                  binding.name(),
+                  node.x(),
+                  node.y(),
+                  false,
+                  node.group(),
+                  node.comment(),
+                  "",
+                  node.seedKey()));
+    }
     EffectGraph next = graph.copy();
-    Group definition =
-        new Group(id, version, List.of(), graph.nodes, graph.output, GraphCompiler.Port.SCALAR);
+    Group definition = new Group(id, version, ports, body, graph.output, GraphCompiler.Port.SCALAR);
     if (next.groups.stream().anyMatch(g -> g.key().equals(definition.key())))
       throw new IllegalArgumentException(
           "That group revision already exists; choose a new version");
     next.groups.add(definition);
-    next.nodes =
-        new ArrayList<>(
-            List.of(
-                new EffectGraph.Node(
-                    "instance",
-                    EffectGraph.Kind.GROUP,
-                    List.of(),
-                    "0",
-                    70,
-                    70,
-                    false,
-                    "",
-                    "",
-                    definition.key())));
-    next.output = "instance";
+    Set<String> retained = new LinkedHashSet<>();
+    Deque<String> pending = new ArrayDeque<>(bindings.keySet());
+    while (!pending.isEmpty()) {
+      String source = pending.removeFirst();
+      if (retained.add(source)) pending.addAll(original.get(source).inputs());
+    }
+    String instance = "instance";
+    int suffix = 1;
+    while (retained.contains(instance)) instance = "instance" + (++suffix);
+    next.nodes = new ArrayList<>();
+    for (var node : graph.nodes) if (retained.contains(node.id())) next.nodes.add(node);
+    var output = original.get(graph.output);
+    next.nodes.add(
+        new EffectGraph.Node(
+            instance,
+            EffectGraph.Kind.GROUP,
+            exposed.stream().map(Exposure::nodeId).toList(),
+            "0",
+            exposed.isEmpty() ? 70 : output.x(),
+            exposed.isEmpty() ? 70 : output.y(),
+            false,
+            "",
+            "",
+            definition.key()));
+    next.output = instance;
     GraphCompiler.compile(next, controls);
     return next;
   }
