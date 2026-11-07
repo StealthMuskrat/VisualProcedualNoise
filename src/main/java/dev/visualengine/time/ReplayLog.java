@@ -36,7 +36,29 @@ public final class ReplayLog {
   }
 
   public void recordControl(long tick, Settings settings) {
-    add(new Event(tick, "controls", 0, 0, 0, 0, PresetIO.document(settings, tick)));
+    prepareControl(tick, settings).commit();
+  }
+
+  /** Reserve no history or log mutation while a scene candidate is still being validated. */
+  public PreparedControl prepareControl(long tick, Settings settings) {
+    requireCapacity();
+    return new PreparedControl(
+        new Event(tick, "controls", 0, 0, 0, 0, PresetIO.document(settings, tick)));
+  }
+
+  public final class PreparedControl {
+    private final Event event;
+    private boolean committed;
+
+    private PreparedControl(Event event) {
+      this.event = event;
+    }
+
+    public void commit() {
+      if (committed) throw new IllegalStateException("Control event already recorded");
+      add(event);
+      committed = true;
+    }
   }
 
   public void recordPointer(long tick, double x, double y, double radius, boolean brush) {
@@ -44,10 +66,14 @@ public final class ReplayLog {
   }
 
   private void add(Event event) {
-    if (events.size() >= 200000)
-      throw new IllegalArgumentException("Replay reached 200000 events; start a new take");
+    requireCapacity();
     events.add(event);
     endTick = Math.max(endTick, event.tick());
+  }
+
+  private void requireCapacity() {
+    if (events.size() >= 200000)
+      throw new IllegalArgumentException("Replay reached 200000 events; start a new take");
   }
 
   public List<Event> at(long tick) {

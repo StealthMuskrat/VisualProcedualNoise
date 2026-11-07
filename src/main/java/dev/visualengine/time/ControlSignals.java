@@ -84,7 +84,15 @@ public final class ControlSignals {
 
   /** Resolve an explicit paused edit at held simulation time without advancing any clock. */
   public void snap(Settings target, double time) {
-    snap(resolve(target, time));
+    restore(prepareSnap(target, time), target);
+  }
+
+  /** Prepare a held edit before committing renderer changes; live clocks and values stay intact. */
+  public State prepareSnap(Settings target, double time) {
+    Settings resolved = resolve(target, time);
+    State state = new State(motionClock, colorClock, resolved.values, resolved.effectValues);
+    state.validate(target);
+    return state;
   }
 
   public Settings tick(Settings target, double time) {
