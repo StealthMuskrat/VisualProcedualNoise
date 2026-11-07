@@ -2,6 +2,28 @@
 
 The Authoring tab offers scalar formulas, four starting templates, editable directional effects and a typed node canvas. Numeric controls update uniforms. Applying a structural edit builds a candidate program; parse, type, compile or allocation failures preserve the current scene.
 
+## Finding and correcting errors
+
+Version 0.20 locates formula syntax/type failures with a line, column and source range. Apply formula selects the offending text; a missing token at the end places the caret at that position. A vector result is rejected before submitting a scalar material field. Correct the draft and apply it again.
+
+Located graph failures identify the original node. Apply graph selects and scrolls to that node; direct FORMULA/EXPRESSION errors also select their source range when the displayed single-line field matches the original expression. The affected node has a warm outline. Compiled expression errors inside an embedded group show the instance path, for example `ripple / field`, and select the outer instance. Inner offsets are relative to the inner expression and are never applied to the outer node's formula. Definitions are still embedded and revision-pinned; this does not add an inline group-definition editor.
+
+The wrapping, scrolling status area retains the complete diagnostic within a fixed preferred height. Editing an invalid draft updates its diagnostic without changing tabs or submitting the scene. Undo graph edit restores the draft and its visible fields; loading/synchronizing another scene clears the previous scene's graph undo history. Scene undo remains a separate operation.
+
+| Failure | Located range |
+| --- | --- |
+| Unknown symbol or function | Its name |
+| Invalid swizzle or number | The invalid token |
+| Arithmetic width mismatch | The operator |
+| Function argument type mismatch | The incompatible argument |
+| Invalid constructor, argument count or scalar-field result | The call or complete field expression |
+| Missing delimiter or other syntax error | The unexpected character, or an empty range at end of input |
+| Missing graph link, cycle or group port mismatch | The original consuming/member node; no invented formula range |
+
+Diagnostics report the first detected error. Definition validation can identify a group revision and its node before instance expansion. Global schema, dependency, size and resource failures can remain unlocated. Locations are parser/type diagnostics, not a reconstruction of vendor shader-driver error positions. Programmatic spans use zero-based, half-open Java/Swing UTF-16 offsets; displayed line and column are one-based, with CRLF counted as one line break.
+
+Location tracking does not enter generated shader text, structural keys, package hashes, presets, replay or checkpoints. A pinned v0.19 source fixture checks nine formula cases and the bundled typed-group function. Native checks reject invalid candidates while preserving the active program, finished image, every GPU state byte, resolved controls and tracked storage, then activate a corrected source. Creative formats and algorithm revision are unchanged; checkpoints retain exact engine-version compatibility.
+
 ## Formula language
 
 `p` is the centered artistic domain after scene scale. `t` is seconds since reset; `phase` is the bounded geometric phase. `frequency`, `drift` and `stripeRate` are promoted numeric controls. `pi` is a constant. The output must be scalar.

@@ -54,6 +54,7 @@ jobs:
           python3 scripts/verify-file-jobs.py
           python3 scripts/verify-effect-modulation.py
           python3 scripts/verify-redraw.py
+          python3 scripts/verify-authoring-diagnostics.py
       - name: Save verification reports and recipe gallery
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
