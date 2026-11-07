@@ -50,6 +50,8 @@ Version 0.11 adds saved desktop VSync and frame-cap controls in the Presentation
 
 Version 0.12 adds monitor-aware fullscreen restore, a saved **Suspend while minimized** preference, and focus-safe pointer gestures. F11 selects the monitor with the greatest window overlap and restores the prior window placement; minimized suspension discards hidden-time backlog. See [desktop window and input behavior](docs/PRESENTATION.md#window-and-input-behavior).
 
+Version 0.13 adds explicit GPU capability checks, resource-limit preflight, saved capability reports and bounded startup logs with previous-session retention. Use **Files → Save GPU capability report** or `--diagnose-gpu gpu-report.json`. See [GPU reports, limits and failure diagnosis](docs/GPU_DIAGNOSTICS.md).
+
 Discovery bookmarks save artwork and its complete restarting configuration under the user-data directory. A/B comparison shows a frozen or saved finished frame on the left and the live scene on the right; this does not run two independent simulations. GPU storage is estimated before quality changes and capped at 512 MiB.
 
 ## Verification

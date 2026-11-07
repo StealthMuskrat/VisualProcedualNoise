@@ -47,6 +47,7 @@ jobs:
           python3 scripts/verify-inspection.py
           python3 scripts/verify-benchmarks.py
           python3 scripts/verify-presentation.py
+          python3 scripts/verify-gpu-report.py
       - name: Save verification reports and recipe gallery
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -77,6 +78,8 @@ jobs:
           Get-Content "build/package-verification.stdout.log"
           Get-Content "build/package-verification.stderr.log"
           if ($process.ExitCode -ne 0) { throw "Packaged application verification failed: $($process.ExitCode)" }
+          python scripts/verify-gpu-report.py --launcher $app --allow-unavailable
+          if ($LASTEXITCODE -ne 0) { throw "Packaged GPU diagnostic verification failed" }
           Compress-Archive -Path "build/package/ProceduralVisualEngine" -DestinationPath "build/ProceduralVisualEngine-windows-x64.zip"
       - name: Save Windows app image
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
