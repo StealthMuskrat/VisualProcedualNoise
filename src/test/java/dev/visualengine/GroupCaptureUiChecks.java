@@ -231,6 +231,8 @@ public final class GroupCaptureUiChecks {
           choose(source, "time");
           name.setText("clock");
           click(panel, "group-add-input");
+          ((JTextField) find(panel, "node-comment")).setText("one graph edit");
+          click(panel, "update");
           for (int i = 0; i < 40; i++) {
             ports.setSelectedIndex(0);
             click(panel, "group-down");

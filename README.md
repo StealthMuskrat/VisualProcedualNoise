@@ -70,6 +70,8 @@ Version 0.21 bounds generated expression/gradient text and final shader stages a
 
 Version 0.22 commits scene undo history only after an edit is accepted. Failed edits retain useful history, failed undo can be retried, and seed/layout/RESET restores request the appropriate restart. See [scene history and undo](docs/UNDO.md).
 
+Version 0.26 adds [reusable group capture with named inputs](docs/AUTHORING.md#reusable-graph-groups). Choose and order exposed sources in the Groups tab; capture infers their types and retains their dependencies outside the pinned group. Capture shares graph undo, and connection slots show group port names and types.
+
 Version 0.25 adds an [ordered connection editor](docs/AUTHORING.md#ordered-connections) for appending, rerouting, removing and reordering root-node inputs. Changes share graph undo, show immediate draft diagnostics, and require a valid Apply before changing the active scene. Missing links remain available for repair.
 
 Version 0.24 adds searchable graph-node navigation with matching counts, result selection, Show node and Reset view. Distant, negative and very large finite layouts can be revealed and edited without moving nodes merely to find them. Search and view changes preserve draft undo history. See [node navigation](docs/AUTHORING.md#node-graphs).
