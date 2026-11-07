@@ -70,6 +70,8 @@ Version 0.21 bounds generated expression/gradient text and final shader stages a
 
 Version 0.22 commits scene undo history only after an edit is accepted. Failed edits retain useful history, failed undo can be retried, and seed/layout/RESET restores request the appropriate restart. See [scene history and undo](docs/UNDO.md).
 
+Version 0.24 adds searchable graph-node navigation with matching counts, result selection, Show node and Reset view. Distant, negative and very large finite layouts can be revealed and edited without moving nodes merely to find them. Search and view changes preserve draft undo history. See [node navigation](docs/AUTHORING.md#node-graphs).
+
 Version 0.23 preserves graph connections, outputs and generator seed identity when nodes are renamed. Draft undo restores selection, preview/output changes are reversible, and selection clicks no longer consume drag-history entries. See [graph editing](docs/AUTHORING.md#node-graphs).
 
 Discovery bookmarks save artwork and its complete restarting configuration under the user-data directory. A/B comparison shows a frozen or saved finished frame on the left and the live scene on the right; this does not run two independent simulations. GPU storage is estimated before quality changes and capped at 512 MiB.
