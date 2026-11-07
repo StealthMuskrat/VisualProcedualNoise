@@ -186,6 +186,22 @@ public final class AuthoringUiChecks {
           check(
               formula.getSelectedText() == null,
               "inner expression offsets are never applied to the outer instance's formula");
+          List<Command> boundedCommands = new ArrayList<>();
+          Settings boundedSettings = new Settings();
+          boundedSettings.installEffectControls(SourceBoundsChecks.controls(), Map.of());
+          AuthoringPanel bounded = new AuthoringPanel(boundedCommands::add, boundedSettings);
+          var boundedExpression = (JTextArea) find(bounded, "expression");
+          boundedExpression.setText(SourceBoundsChecks.expression(26));
+          click(bounded, "apply-formula");
+          check(
+              boundedCommands.isEmpty()
+                  && boundedExpression.getSelectionStart() == 0
+                  && boundedExpression.getSelectionEnd() == boundedExpression.getText().length()
+                  && ((JTextArea) find(bounded, "status"))
+                      .getText()
+                      .contains("expression and gradient exceed 64 KiB"),
+              "generated-source limits select the complete offending formula without submitting"
+                  + " it");
           panel.setSize(620, 900);
           layout(panel);
           check(
