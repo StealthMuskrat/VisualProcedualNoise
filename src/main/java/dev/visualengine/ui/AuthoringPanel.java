@@ -33,6 +33,7 @@ public final class AuthoringPanel extends JPanel {
   private final JCheckBox bypass = new JCheckBox("Bypass selected node");
   private final JTextArea diagnostic = new JTextArea("Ready", 3, 28);
   private final JTabbedPane tabs = new JTabbedPane();
+  private final ConnectionPanel connections;
   private String diagnosticNode;
 
   private record Draft(EffectGraph graph, String selected) {}
@@ -217,6 +218,17 @@ public final class AuthoringPanel extends JPanel {
     edit.add(new JLabel("Shift-click a target to connect from selection"));
     nodes.add(edit, BorderLayout.SOUTH);
     tabs.addTab("Node graph", nodes);
+    connections =
+        new ConnectionPanel(
+            this::select,
+            this::editConnections,
+            error -> showProblem(error, false, true),
+            () -> {
+              tabs.setSelectedIndex(1);
+              var node = find(selected);
+              if (node != null) canvas.reveal(node);
+            });
+    tabs.addTab("Connections", connections);
     add(tabs, BorderLayout.CENTER);
     JScrollPane messages = new JScrollPane(diagnostic);
     messages.setPreferredSize(
@@ -329,6 +341,7 @@ public final class AuthoringPanel extends JPanel {
     EffectGraph.Node n = find(name);
     selected = n == null ? null : name;
     syncNavigatorSelection();
+    connections.sync(graph, selected);
     if (n == null) {
       for (var field : List.of(id, inputs, formula, group, comment, template)) field.setText("");
       bypass.setSelected(false);
@@ -344,6 +357,16 @@ public final class AuthoringPanel extends JPanel {
     template.setText(n.template());
     bypass.setSelected(n.bypass());
     canvas.repaint();
+  }
+
+  private void editConnections(EffectGraph candidate, int slot) {
+    if (!GraphEdits.same(graph, candidate)) remember();
+    graph = candidate;
+    canvas.cancelDrag();
+    var node = find(selected);
+    inputs.setText(node == null ? "" : String.join(", ", node.inputs()));
+    refresh();
+    connections.selectInput(slot);
   }
 
   private void updateSelected() {
@@ -437,6 +460,7 @@ public final class AuthoringPanel extends JPanel {
 
   private void refresh() {
     refreshNavigator();
+    connections.sync(graph, selected);
     try {
       var c = GraphCompiler.compile(graph, controls);
       diagnosticNode = null;
@@ -455,6 +479,7 @@ public final class AuthoringPanel extends JPanel {
     graph = s.graph == null ? new EffectGraph() : s.graph.copy();
     output.setText(graph.output);
     canvas.resetView();
+    connections.resetSelection();
     nodeSearch.setText("");
     select(graph.output);
     refresh();
@@ -519,25 +544,12 @@ public final class AuthoringPanel extends JPanel {
                       .orElse(null);
               if (hit == null) return;
               if (e.isShiftDown() && selected != null && !selected.equals(hit.id())) {
-                remember();
-                var links = new ArrayList<>(hit.inputs());
-                links.add(selected);
-                var next =
-                    new EffectGraph.Node(
-                        hit.id(),
-                        hit.kind(),
-                        links,
-                        hit.expression(),
-                        hit.x(),
-                        hit.y(),
-                        hit.bypass(),
-                        hit.group(),
-                        hit.comment(),
-                        hit.template(),
-                        hit.seedKey());
-                graph.nodes.set(graph.nodes.indexOf(hit), next);
-                select(next.id());
+                EffectGraph candidate = GraphEdits.appendInput(graph, hit.id(), selected);
+                if (!GraphEdits.same(graph, candidate)) remember();
+                graph = candidate;
+                select(hit.id());
                 refresh();
+                connections.selectInput(hit.inputs().size());
                 return;
               }
               select(hit.id());
