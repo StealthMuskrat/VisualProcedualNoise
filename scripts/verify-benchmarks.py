@@ -46,6 +46,13 @@ with tempfile.TemporaryDirectory(prefix="benchmark-check-", dir=reports) as temp
         raise SystemExit("Suite workloads do not have distinct identities")
     for a, b in zip(first["cases"], second["cases"]):
         validate(a, 8, 16, 2)
+        for case in (a, b):
+            allocation = case["allocation"]
+            plan = allocation["lastPreflight"]
+            if allocation["limitBytes"] != 512 * 1024 * 1024 or not case["allocatedBytes"] == allocation["residentBytes"] <= allocation["largestAllowedPeakBytes"] <= allocation["limitBytes"]:
+                raise SystemExit("Suite allocation statistics disagree with tracked storage or budget")
+            if plan["peakBytes"] != plan["residentBytes"] + plan["stagedBytes"] or plan["settledBytes"] != allocation["residentBytes"]:
+                raise SystemExit("Suite allocation plan does not describe its completed resources")
         if a["referenceTick"] != 48 or a["firstMeasuredTick"] != 17 or a["firstMeasuredRenderTick"] != 18:
             raise SystemExit("Suite tick schedule differs from its pinned contract")
         for key in ("id", "workloadHash", "programSignature", "imageHash", "stateHashes", "signals", "simulation"):

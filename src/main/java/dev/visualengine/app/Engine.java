@@ -271,9 +271,13 @@ public final class Engine implements AutoCloseable {
       renderer.render(
           signals.frame(settings), clock.seconds(), window.width, window.height, x, y, brush);
       if (freeze) {
-        renderer.freezeFinished(window.width, window.height);
         freeze = false;
-        status("Frozen A/B reference: left frozen, right live");
+        try {
+          renderer.freezeFinished(window.width, window.height);
+          status("Frozen A/B reference: left frozen, right live");
+        } catch (RuntimeException e) {
+          status("Reference capture failed: " + e.getMessage());
+        }
       }
       if (options.export != null)
         capture(
@@ -365,6 +369,7 @@ public final class Engine implements AutoCloseable {
       report.add("presentationRequest", PresetIO.JSON.toJsonTree(presentation));
       report.add("deviceCapabilities", PresetIO.JSON.toJsonTree(window.capabilities()));
       report.add("shaderCache", PresetIO.JSON.toJsonTree(renderer.shaderCacheStats()));
+      report.add("allocation", PresetIO.JSON.toJsonTree(renderer.allocationStats()));
       enqueueIOBlocking(
           () -> PresetIO.atomicWrite(options.benchmark, PresetIO.JSON.toJson(report)));
     }
@@ -468,6 +473,7 @@ public final class Engine implements AutoCloseable {
           scene.add("presentationRequest", PresetIO.JSON.toJsonTree(presentation));
           report.add("scene", scene);
           report.add("shaderCache", PresetIO.JSON.toJsonTree(renderer.shaderCacheStats()));
+          report.add("allocation", PresetIO.JSON.toJsonTree(renderer.allocationStats()));
           enqueueIO(() -> {
             PresetIO.atomicWrite(
                 (Path) c.value(), dev.visualengine.export.GpuReport.encode(report));

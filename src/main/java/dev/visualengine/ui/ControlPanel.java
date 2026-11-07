@@ -161,6 +161,7 @@ public final class ControlPanel implements AutoCloseable {
     quality.add(qualityPreview);
     quality.add(profileBudget);
     quality.add(new JLabel("Changing grid, particle count or history restarts state."));
+    quality.add(new JLabel("Replacement must fit old and new resources within 512 MiB."));
     quality.add(new JLabel("Applying a quality preset stops an active replay."));
     JButton applyQuality = new JButton("Apply quality preset");
     applyQuality.addActionListener(

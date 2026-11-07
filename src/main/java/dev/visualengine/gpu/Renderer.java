@@ -11,6 +11,16 @@ public final class Renderer implements AutoCloseable {
   private final ShaderSources sources;
   private final DeviceCapabilities capabilities;
   private final boolean retainMaterialVariants;
+  private final long allocationLimit;
+  private long largestAllowedPeak;
+  private Budget.Plan lastAllocationPlan;
+
+  public record AllocationStats(
+      long limitBytes,
+      long residentBytes,
+      long largestAllowedPeakBytes,
+      Budget.Plan lastPreflight) {}
+
   private VariantCache<Program> materials;
   private long materialGeneration;
   public static final int MATERIAL_VARIANTS = 8;
@@ -58,9 +68,20 @@ public final class Renderer implements AutoCloseable {
 
   private Renderer(
       ShaderSources sources, DeviceCapabilities capabilities, boolean retainMaterialVariants) {
+    this(sources, capabilities, retainMaterialVariants, Budget.LIMIT);
+  }
+
+  Renderer(
+      ShaderSources sources,
+      DeviceCapabilities capabilities,
+      boolean retainMaterialVariants,
+      long allocationLimit) {
+    if (allocationLimit < 1 || allocationLimit > Budget.LIMIT)
+      throw new IllegalArgumentException("Allocation limit must be within the engine budget");
     this.sources = sources;
     this.capabilities = capabilities;
     this.retainMaterialVariants = retainMaterialVariants;
+    this.allocationLimit = allocationLimit;
     capabilities.requireBaseline();
     vao = glGenVertexArrays();
     glBindVertexArray(vao);
@@ -127,6 +148,25 @@ public final class Renderer implements AutoCloseable {
     return new ShaderCacheStats(retainMaterialVariants, materialGeneration, materials.stats());
   }
 
+  public AllocationStats allocationStats() {
+    return new AllocationStats(allocationLimit, bytes(), largestAllowedPeak, lastAllocationPlan);
+  }
+
+  private Budget.Plan replacement(String operation, long replaced, long staged) {
+    return preflight(Budget.replacement(operation, bytes(), replaced, staged));
+  }
+
+  private Budget.Plan temporary(String operation, long staged) {
+    return preflight(Budget.temporary(operation, bytes(), staged));
+  }
+
+  private Budget.Plan preflight(Budget.Plan plan) {
+    lastAllocationPlan = plan;
+    Budget.require(plan, allocationLimit);
+    largestAllowedPeak = Math.max(largestAllowedPeak, plan.peakBytes());
+    return plan;
+  }
+
   private String materialSource(Settings settings) {
     String function = "float customField(vec2 p){return 0.;}\n";
     String gradient = null;
@@ -182,15 +222,17 @@ public final class Renderer implements AutoCloseable {
             || simulation.particles.count != settings.particles
             || simulation.history.layers != settings.historyLayers;
     if (resourcesChanged) capabilities.requireScene(settings);
-    Budget.require(
-        Budget.persistent(settings)
-            + (scene == null ? 0 : scene.bytes() + glow.bytes())
-            + (reference == null ? 0 : reference.bytes()));
+    if (resourcesChanged)
+      replacement(
+          "simulation replacement",
+          simulation == null ? 0 : simulation.bytes() + marks.bytes(),
+          Budget.persistent(settings));
+    else Budget.require(bytes(), allocationLimit);
     VariantCache<Program>.Selection candidateMaterial = null;
     Settings candidateSettings = null;
     Simulation candidate = null;
     Texture nextMarks = null;
-    try {
+    try (var bindings = resourcesChanged ? new AllocationBindings() : null) {
       if (structureChanged(settings)) {
         candidateMaterial =
             prepareMaterial(
@@ -261,13 +303,12 @@ public final class Renderer implements AutoCloseable {
     if (scene != null && scene.width == w && scene.height == h) return;
     capabilities.requireTexture("RGBA16F", w, h);
     capabilities.requireViewport(w, h);
-    Budget.require(
-        simulation.bytes()
-            + marks.bytes()
-            + Budget.display(w, h)
-            + (reference == null ? 0 : reference.bytes()));
+    replacement(
+        "display replacement",
+        scene == null ? 0 : scene.bytes() + glow.bytes(),
+        Budget.display(w, h));
     Texture a = null, b = null;
-    try {
+    try (var bindings = new AllocationBindings()) {
       a = new Texture(w, h, GL_RGBA16F);
       b = new Texture(Math.max(1, w / 4), Math.max(1, h / 4), GL_RGBA16F);
       a.clamp();
@@ -387,7 +428,7 @@ public final class Renderer implements AutoCloseable {
     capabilities.requireTexture("RGBA16F", w, h);
     capabilities.requireTexture("RGBA8", w, h);
     capabilities.requireViewport(w, h);
-    Budget.require(bytes() + Budget.display(w, h) + (long) w * h * 4);
+    temporary("still capture", Budget.sum(Budget.display(w, h), Budget.pixels(w, h, 4)));
     int read = glGetInteger(GL_READ_FRAMEBUFFER_BINDING),
         draw = glGetInteger(GL_DRAW_FRAMEBUFFER_BINDING);
     int[] viewport = new int[4];
@@ -436,7 +477,7 @@ public final class Renderer implements AutoCloseable {
     int w = size.width(), h = size.height();
     capabilities.requireTexture(kind.channels == 1 ? "R32F" : "RGBA32F", w, h);
     capabilities.requireViewport(w, h);
-    Budget.require(bytes() + (long) w * h * kind.gpuChannels() * 4);
+    temporary("texture-map capture", Budget.pixels(w, h, kind.gpuChannels() * 4));
     int read = glGetInteger(GL_READ_FRAMEBUFFER_BINDING),
         draw = glGetInteger(GL_DRAW_FRAMEBUFFER_BINDING);
     int[] viewport = new int[4];
@@ -528,13 +569,17 @@ public final class Renderer implements AutoCloseable {
     int outputHeight = Math.max(1, (int) (height * settings.displayScale));
     if (!deviceSignature().equals(snapshot.device()))
       throw new IllegalArgumentException("Checkpoint graphics device or driver does not match");
-    Budget.require(
-        bytes()
-            + Budget.persistent(settings)
-            + Budget.display(outputWidth, outputHeight)
-            + (snapshot.reference() == null ? 0 : snapshot.reference().bytes()));
-    Renderer candidate = new Renderer(sources, capabilities, retainMaterialVariants);
-    try {
+    Budget.Plan plan =
+        replacement(
+            "checkpoint replacement",
+            bytes(),
+            Budget.sum(
+                Budget.persistent(settings),
+                Budget.display(outputWidth, outputHeight),
+                snapshot.reference() == null ? 0 : snapshot.reference().bytes()));
+    Renderer candidate = null;
+    try (var bindings = new AllocationBindings()) {
+      candidate = new Renderer(sources, capabilities, retainMaterialVariants, allocationLimit);
       candidate.configure(settings);
       if (!candidate.programSignature().equals(snapshot.signature()))
         throw new IllegalArgumentException(
@@ -547,9 +592,11 @@ public final class Renderer implements AutoCloseable {
         GpuTransfers.write(candidate.reference, snapshot.blobs().get("reference"));
       }
       candidate.ensureOutput(outputWidth, outputHeight);
+      candidate.lastAllocationPlan = plan;
+      candidate.largestAllowedPeak = Math.max(candidate.largestAllowedPeak, plan.peakBytes());
       return candidate;
     } catch (RuntimeException e) {
-      candidate.close();
+      if (candidate != null) candidate.close();
       throw e;
     }
   }
@@ -569,19 +616,31 @@ public final class Renderer implements AutoCloseable {
   }
 
   public void freezeFinished(int width, int height) {
-    Budget.require(
-        bytes() - (reference == null ? 0 : reference.bytes()) + (long) width * height * 4);
-    Texture next = new Texture(width, height, GL_RGBA8);
-    next.clamp();
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-    glBindTexture(GL_TEXTURE_2D, next.id);
-    glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
+    replacement(
+        "frozen-reference replacement",
+        reference == null ? 0 : reference.bytes(),
+        Budget.pixels(width, height, 4));
+    Texture next = null;
+    try (var bindings = new AllocationBindings()) {
+      next = new Texture(width, height, GL_RGBA8);
+      next.clamp();
+      glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+      glBindTexture(GL_TEXTURE_2D, next.id);
+      glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
+      int error = glGetError();
+      if (error != GL_NO_ERROR)
+        throw new IllegalStateException("Frozen reference copy failed: GL error " + error);
+    } catch (RuntimeException e) {
+      if (next != null) next.close();
+      throw e;
+    }
     if (reference != null) reference.close();
     reference = next;
   }
 
   public void clearReference() {
     if (reference != null) {
+      replacement("reference release", reference.bytes(), 0);
       reference.close();
       reference = null;
     }
@@ -589,13 +648,17 @@ public final class Renderer implements AutoCloseable {
 
   public void setReference(dev.visualengine.export.Capture.Pixels image) {
     // Keep the old reference until allocation and upload of the candidate both succeed.
-    Budget.require(bytes() + (long) image.width() * image.height() * 4);
-    Texture candidate = new Texture(image.width(), image.height(), GL_RGBA8);
-    try {
+    replacement(
+        "saved-reference replacement",
+        reference == null ? 0 : reference.bytes(),
+        Budget.pixels(image.width(), image.height(), 4));
+    Texture candidate = null;
+    try (var bindings = new AllocationBindings()) {
+      candidate = new Texture(image.width(), image.height(), GL_RGBA8);
       candidate.clamp();
       GpuTransfers.write(candidate, image.rgba());
     } catch (RuntimeException e) {
-      candidate.close();
+      if (candidate != null) candidate.close();
       throw e;
     }
     Texture previous = reference;

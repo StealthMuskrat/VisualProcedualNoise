@@ -23,10 +23,19 @@ public final class Texture implements AutoCloseable {
       glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
       glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
       glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, id, 0);
-      if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE
-          || glGetError() != GL_NO_ERROR)
+      int status = glCheckFramebufferStatus(GL_FRAMEBUFFER), error = glGetError();
+      if (status != GL_FRAMEBUFFER_COMPLETE || error != GL_NO_ERROR)
         throw new IllegalStateException(
-            "GPU allocation failed for " + width + "x" + height + " format " + format);
+            "GPU allocation failed for "
+                + width
+                + "x"
+                + height
+                + " format "
+                + format
+                + "; framebuffer status "
+                + status
+                + "; GL error "
+                + error);
       clear(0, 0, 0, 0);
     } catch (RuntimeException e) {
       close();
