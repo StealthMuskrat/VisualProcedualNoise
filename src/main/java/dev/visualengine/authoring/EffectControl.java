@@ -95,7 +95,15 @@ public record EffectControl(
   }
 
   public static Formula.Compiled compileField(String expression, List<EffectControl> controls) {
-    var compiled = compile(expression, controls);
+    return requireScalar(expression, compile(expression, controls));
+  }
+
+  public static Formula.Compiled compileFieldValue(
+      String expression, List<EffectControl> controls) {
+    return requireScalar(expression, Formula.compileValue(expression, symbols(controls)));
+  }
+
+  private static Formula.Compiled requireScalar(String expression, Formula.Compiled compiled) {
     if (compiled.root().type() != Formula.Type.FLOAT)
       throw AuthoringDiagnostic.at(
           expression, 0, expression.length(), "Field expression must be scalar");

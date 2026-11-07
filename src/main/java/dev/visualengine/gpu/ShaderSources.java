@@ -26,6 +26,45 @@ public final class ShaderSources {
     return expansion.text.toString();
   }
 
+  /** Final stage limit, including generated insertions; validate before hashing or native calls. */
+  public static int sourceBytes(String source) {
+    if (source == null) throw new IllegalArgumentException("Missing shader source");
+    int bytes = 0;
+    for (int i = 0; i < source.length(); i++) {
+      char c = source.charAt(i);
+      if (c == 0) throw new IllegalArgumentException("Shader source contains NUL");
+      if (Character.isHighSurrogate(c)) {
+        if (i + 1 >= source.length() || !Character.isLowSurrogate(source.charAt(i + 1)))
+          throw new IllegalArgumentException("Shader source contains invalid Unicode");
+        i++;
+        bytes += 4;
+      } else if (Character.isLowSurrogate(c))
+        throw new IllegalArgumentException("Shader source contains invalid Unicode");
+      else bytes += c <= 0x7f ? 1 : c <= 0x7ff ? 2 : 3;
+      if (bytes > EXPANDED_BYTES)
+        throw new IllegalArgumentException("Final shader source exceeds 1 MiB");
+    }
+    return bytes;
+  }
+
+  /** ASCII markers cannot split a Unicode code point. Bound every occurrence before replacing. */
+  public static String replace(String source, String marker, String replacement) {
+    int bytes = sourceBytes(source);
+    if (marker == null || marker.isEmpty() || marker.chars().anyMatch(c -> c < 32 || c > 126))
+      throw new IllegalArgumentException("Shader insertion requires a nonempty ASCII marker");
+    int count = 0, at = 0;
+    while ((at = source.indexOf(marker, at)) >= 0) {
+      count++;
+      at += marker.length();
+    }
+    if (count == 0) return source;
+    int inserted = sourceBytes(replacement);
+    long total = bytes + (long) count * (inserted - marker.length());
+    if (total > EXPANDED_BYTES)
+      throw new IllegalArgumentException("Final shader source exceeds 1 MiB after insertion");
+    return source.replace(marker, replacement);
+  }
+
   private static final class Expansion {
     final StringBuilder text = new StringBuilder();
     final Set<String> active = new LinkedHashSet<>();

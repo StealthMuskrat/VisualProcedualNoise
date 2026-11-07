@@ -191,13 +191,15 @@ public final class Renderer implements AutoCloseable {
                 : "float e=max(1e-4,scale/viewport.y);return"
                       + " vec2(customField(p+vec2(e,0))-customField(p-vec2(e,0)),customField(p+vec2(0,e))-customField(p-vec2(0,e)))/(2.*e);")
             + "}\n";
-    return sources
-        .read("render/material.frag")
-        .replace("#define recipe 0", "#define recipe " + settings.recipe.ordinal())
-        .replace(
-            "// @CUSTOM_FIELD@",
-            dev.visualengine.authoring.EffectControl.declarations(settings.effectControls)
-                + function);
+    String source =
+        ShaderSources.replace(
+            sources.read("render/material.frag"),
+            "#define recipe 0",
+            "#define recipe " + settings.recipe.ordinal());
+    return ShaderSources.replace(
+        source,
+        "// @CUSTOM_FIELD@",
+        dev.visualengine.authoring.EffectControl.declarations(settings.effectControls) + function);
   }
 
   private boolean structureChanged(Settings s) {

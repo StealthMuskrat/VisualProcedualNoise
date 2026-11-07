@@ -216,19 +216,37 @@ public final class Formula {
   }
 
   public static Compiled compile(String source, Map<String, Type> symbols) {
+    return compile(source, symbols, true);
+  }
+
+  /** Graph values use differences of the completed graph; do not generate unused gradients. */
+  public static Compiled compileValue(String source, Map<String, Type> symbols) {
+    return compile(source, symbols, false);
+  }
+
+  private static Compiled compile(String source, Map<String, Type> symbols, boolean derivatives) {
     if (source == null || source.length() > 8192)
       throw new IllegalArgumentException("Formula exceeds 8192 characters");
     Formula p = new Formula(source, symbols);
     Node root = p.expression();
     p.space();
     if (p.offset != source.length()) throw p.error("Unexpected token");
-    if (root.cost() > 8192 || root.depth() > 32 || root.code().length() > 65536)
+    if (root.cost() > 8192 || root.depth() > 32)
       throw p.error(root, "Expanded formula cost or depth exceeds limit");
+    String expression = root.code();
+    int expressionBytes = GeneratedSource.bytes(expression);
+    if (expressionBytes > GeneratedSource.LIMIT)
+      throw p.error(root, "Generated expression exceeds 64 KiB");
     Set<String> dependencies = new TreeSet<>();
     collect(root, dependencies);
-    String derivative = gradient(root);
-    return new Compiled(
-        root, root.code(), derivative, derivative != null, Set.copyOf(dependencies));
+    String derivative = null;
+    try {
+      if (derivatives && supportsGradient(root))
+        derivative = gradient(root, GeneratedSource.LIMIT - expressionBytes);
+    } catch (GeneratedSource.Limit limit) {
+      throw p.error(root, limit.getMessage());
+    }
+    return new Compiled(root, expression, derivative, derivative != null, Set.copyOf(dependencies));
   }
 
   private Node mark(Node n, int start) {
@@ -523,57 +541,83 @@ public final class Formula {
     }
   }
 
-  /**
-   * Conservative scalar AD subset. Unsupported or nonsmooth trees use differences of the complete
-   * field.
-   */
-  private static String gradient(Node n) {
-    if (n.type() != Type.FLOAT) return null;
+  /** Conservative scalar AD subset. Check support before generating any derivative source. */
+  private static boolean supportsGradient(Node n) {
+    if (n.type() != Type.FLOAT) return false;
     return switch (n) {
-      case NumberNode ignored -> "vec2(0.)";
-      case Symbol ignored -> "vec2(0.)";
-      case Reference ignored -> null;
-      case Swizzle s ->
-          s.child() instanceof Symbol v && v.name().equals("p")
-              ? (s.components().equals("x") ? "vec2(1.,0.)" : "vec2(0.,1.)")
-              : null;
-      case Unary u -> {
-        String d = gradient(u.child());
-        yield d == null ? null : "(" + u.op() + d + ")";
-      }
-      case Binary b -> {
-        String a = gradient(b.left()), d = gradient(b.right());
-        if (a == null || d == null) yield null;
-        yield switch (b.op()) {
-          case '+', '-' -> "(" + a + b.op() + d + ")";
-          case '*' -> "(" + a + "*" + b.right().code() + "+" + d + "*" + b.left().code() + ")";
+      case NumberNode ignored -> true;
+      case Symbol ignored -> true;
+      case Reference ignored -> false;
+      case Swizzle sw -> sw.child() instanceof Symbol symbol && symbol.name().equals("p");
+      case Unary unary -> supportsGradient(unary.child());
+      case Binary binary -> supportsGradient(binary.left()) && supportsGradient(binary.right());
+      case Call call ->
+          call.args().size() == 1
+              && Set.of("sin", "cos").contains(call.name())
+              && supportsGradient(call.args().getFirst());
+    };
+  }
+
+  private static String gradient(Node n, int remainingBytes) {
+    return switch (n) {
+      case NumberNode ignored -> GeneratedSource.join(remainingBytes, "vec2(0.)");
+      case Symbol ignored -> GeneratedSource.join(remainingBytes, "vec2(0.)");
+      case Swizzle sw ->
+          GeneratedSource.join(
+              remainingBytes, sw.components().equals("x") ? "vec2(1.,0.)" : "vec2(0.,1.)");
+      case Unary unary ->
+          GeneratedSource.join(
+              remainingBytes,
+              "(",
+              String.valueOf(unary.op()),
+              gradient(unary.child(), remainingBytes),
+              ")");
+      case Binary binary -> {
+        String left = gradient(binary.left(), remainingBytes);
+        String right = gradient(binary.right(), remainingBytes);
+        yield switch (binary.op()) {
+          case '+', '-' ->
+              GeneratedSource.join(
+                  remainingBytes, "(", left, String.valueOf(binary.op()), right, ")");
+          case '*' ->
+              GeneratedSource.join(
+                  remainingBytes,
+                  "(",
+                  left,
+                  "*",
+                  binary.right().code(),
+                  "+",
+                  right,
+                  "*",
+                  binary.left().code(),
+                  ")");
           case '/' ->
-              "(("
-                  + a
-                  + "*"
-                  + b.right().code()
-                  + "-"
-                  + d
-                  + "*"
-                  + b.left().code()
-                  + ")/("
-                  + b.right().code()
-                  + "*"
-                  + b.right().code()
-                  + "))";
-          default -> null;
+              GeneratedSource.join(
+                  remainingBytes,
+                  "((",
+                  left,
+                  "*",
+                  binary.right().code(),
+                  "-",
+                  right,
+                  "*",
+                  binary.left().code(),
+                  ")/(",
+                  binary.right().code(),
+                  "*",
+                  binary.right().code(),
+                  "))");
+          default -> throw new IllegalStateException("Unsupported gradient operator");
         };
       }
-      case Call c -> {
-        if (c.args().size() != 1) yield null;
-        String d = gradient(c.args().getFirst());
-        if (d == null) yield null;
-        yield switch (c.name()) {
-          case "sin" -> "(cos(" + c.args().getFirst().code() + ")*" + d + ")";
-          case "cos" -> "(-sin(" + c.args().getFirst().code() + ")*" + d + ")";
-          default -> null;
-        };
+      case Call call -> {
+        String child = call.args().getFirst().code();
+        String derivative = gradient(call.args().getFirst(), remainingBytes);
+        yield call.name().equals("sin")
+            ? GeneratedSource.join(remainingBytes, "(cos(", child, ")*", derivative, ")")
+            : GeneratedSource.join(remainingBytes, "(-sin(", child, ")*", derivative, ")");
       }
+      default -> throw new IllegalStateException("Unsupported gradient node");
     };
   }
 }

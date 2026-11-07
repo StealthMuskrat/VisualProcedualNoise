@@ -89,7 +89,7 @@ public final class GraphCompiler {
             + "\nreturn "
             + output.code()
             + ";\n}\n";
-    if (function.length() > 65536)
+    if (GeneratedSource.bytes(function) > GeneratedSource.LIMIT)
       throw new IllegalArgumentException("Generated graph source exceeds 64 KiB");
     Map<String, Port> types = new LinkedHashMap<>();
     c.values.forEach((id, v) -> types.put(id, v.port()));
@@ -175,7 +175,7 @@ public final class GraphCompiler {
           symbols.put(name, type);
           refs.put(name, new Formula.Reference(value.code(), type));
         }
-        var f = Formula.compile(n.expression(), symbols);
+        var f = Formula.compileValue(n.expression(), symbols);
         expandedCost += f.root().cost();
         code = Formula.bind(f.root(), refs).code();
         port =
@@ -188,7 +188,7 @@ public final class GraphCompiler {
       }
       case FORMULA -> {
         arity(n, in, 0);
-        var f = EffectControl.compileField(n.expression(), controls);
+        var f = EffectControl.compileFieldValue(n.expression(), controls);
         expandedCost += f.root().cost();
         code = f.expression();
         port = Port.SCALAR;

@@ -39,6 +39,7 @@ public final class Program implements AutoCloseable {
   }
 
   private Program(int[] stages, String[] sources) {
+    for (String source : sources) ShaderSources.sourceBytes(source);
     sourceHash = fingerprint(stages, sources);
     int program = glCreateProgram();
     List<Integer> shaders = new ArrayList<>();
