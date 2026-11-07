@@ -78,6 +78,21 @@ public final class GpuChecks {
       Settings active = evolve(renderer, s, 16);
       renderer.render(active, 16 * Playback.DT, 96, 64, 0, 0, false);
       int[] original = image();
+      check(
+          !window.toggleFullscreen()
+              && !window.fullscreen()
+              && !window.iconified()
+              && window.pointer().equals(dev.visualengine.platform.DesktopInput.NONE),
+          "offline native window bypasses desktop monitor, focus and pointer policies");
+      window.interruptInput();
+      window.resize();
+      check(
+          window.width == 96
+              && window.height == 64
+              && Arrays.equals(original, image())
+              && window.consumeTimingReset()
+              && !window.consumeTimingReset(),
+          "offline desktop no-op preserves the live framebuffer and consumes transition flag once");
       renderer.render(active, 16 * Playback.DT, 96, 64, 0, 0, false);
       check(Arrays.equals(original, image()), "paused image unchanged");
       renderer.reset(s);
@@ -272,6 +287,7 @@ public final class GpuChecks {
       count += GaborGpuChecks.run();
       count += PeriodicityGpuChecks.run();
       count += BenchmarkGpuChecks.run();
+      count += DesktopGpuChecks.run();
       reloadFailure(window);
       check(glGetError() == GL_NO_ERROR, "no final GL error");
       System.out.println("GPU checks passed: " + count + " | " + glGetString(GL_RENDERER));

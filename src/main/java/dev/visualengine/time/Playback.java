@@ -26,6 +26,11 @@ public final class Playback {
     accumulator = 0;
   }
 
+  /** Discard a desktop suspension/transition's fractional backlog without changing the tick. */
+  public void discardBacklog() {
+    accumulator = 0;
+  }
+
   public int accumulate(double elapsed, double speed, boolean paused) {
     if (paused || speed == 0) {
       accumulator = 0;

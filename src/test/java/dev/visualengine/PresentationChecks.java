@@ -60,7 +60,13 @@ public final class PresentationChecks {
       check(
           PresentationIO.load(file).equals(Presentation.DEFAULT),
           "missing preferences retain prior VSync-on uncapped desktop default");
-      Presentation desired = new Presentation(false, 144);
+      String legacy = "{\"schemaVersion\":1,\"vsync\":false,\"frameLimit\":60}";
+      Files.writeString(file, legacy);
+      check(
+          PresentationIO.load(file).equals(new Presentation(false, 60, true))
+              && Files.readString(file).equals(legacy),
+          "v1 desktop preferences migrate with minimized suspension without rewriting on load");
+      Presentation desired = new Presentation(false, 144, false);
       PresentationIO.save(file, desired);
       check(
           PresentationIO.load(file).equals(desired),
@@ -82,6 +88,10 @@ public final class PresentationChecks {
           new String[] {
             "{}",
             "{\"schemaVersion\":2,\"vsync\":true,\"frameLimit\":60}",
+            "{\"schemaVersion\":3,\"vsync\":true,\"frameLimit\":60,\"suspendWhenMinimized\":true}",
+            "{\"schemaVersion\":2,\"vsync\":true,\"frameLimit\":60,\"suspendWhenMinimized\":\"true\"}",
+            "{\"schemaVersion\":2,\"vsync\":true,\"frameLimit\":60,\"suspendWhenMinimized\":1}",
+            "{\"schemaVersion\":1,\"vsync\":true,\"frameLimit\":60,\"suspendWhenMinimized\":false}",
             "{\"schemaVersion\":1,\"vsync\":\"true\",\"frameLimit\":60}",
             "{\"schemaVersion\":1,\"vsync\":true,\"frameLimit\":60.5}",
             "{\"schemaVersion\":1,\"vsync\":true,\"frameLimit\":-1}",

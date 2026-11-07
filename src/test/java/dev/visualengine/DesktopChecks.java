@@ -76,6 +76,10 @@ public final class DesktopChecks {
         input.sample(200, 100, 800, 400, 1600, 800, true).brush(),
         "release callback between capped frames rearms a fresh press");
     check(
+        !input.tickBrush(true) && input.tickBrush(true),
+        "focus interruption emits a tick release before a fresh stroke, including after a paused"
+            + " interval");
+    check(
         !input.sample(-1, 100, 800, 400, 1600, 800, true).brush()
             && !input.sample(800, 100, 800, 400, 1600, 800, true).brush(),
         "captured mouse outside artwork cannot paint");
@@ -105,6 +109,12 @@ public final class DesktopChecks {
             && resumed.discardElapsed()
             && clock.accumulate(resumed.discardElapsed() ? 0 : 60, 1, false) == 0,
         "restoring after a hidden minute advances no catch-up ticks");
+    clock.advance();
+    clock.accumulate(Playback.DT * .75, 1, false);
+    clock.discardBacklog();
+    check(
+        clock.tick() == 1 && clock.accumulate(Playback.DT * .5, 1, false) == 0,
+        "suspension clears fractional backlog while retaining developed tick state");
     check(
         !lifecycle.update(false, false, 800, 400, true).discardElapsed(),
         "resume consumes one clock boundary then normal time continues");

@@ -7,7 +7,7 @@ public final class DesktopInput {
   public record Pointer(double x, double y, boolean brush) {}
 
   public static final Pointer NONE = new Pointer(0, 0, false);
-  private boolean focused, armed;
+  private boolean focused, armed, breakStroke;
 
   public void focus(boolean value) {
     focused = value;
@@ -16,6 +16,18 @@ public final class DesktopInput {
 
   public void cancel() {
     armed = false;
+    breakStroke = true;
+  }
+
+  /**
+   * Emit a release on a simulation tick, even if release/repress happened between capped frames.
+   */
+  public boolean tickBrush(boolean requested) {
+    if (breakStroke) {
+      breakStroke = false;
+      return false;
+    }
+    return requested;
   }
 
   /** Unfocused synthetic releases must not rearm a held button after an alt-tab. */

@@ -52,24 +52,29 @@ public final class PresentationUiChecks {
       var panel = new PresentationPanel(commands::add, errors::add, Presentation.DEFAULT);
       var vsync = (JCheckBox) find(panel, "presentation-vsync");
       var limit = (JSpinner) find(panel, "presentation-limit");
+      var suspend = (JCheckBox) find(panel, "presentation-suspend");
       var apply = (JButton) find(panel, "presentation-apply");
       vsync.setSelected(false);
       limit.setValue(144);
+      check(suspend.isSelected(), "desktop defaults explicitly suspend while minimized");
+      suspend.setSelected(false);
       check(commands.isEmpty(), "presentation draft edits wait for explicit application");
       apply.doClick();
       check(
           commands.size() == 1
               && commands.getFirst().type().equals("presentation")
-              && commands.getFirst().value().equals(new Presentation(false, 144)),
+              && commands.getFirst().value().equals(new Presentation(false, 144, false)),
           "presentation UI submits complete validated desktop preference");
-      panel.showApplied(new Presentation(false, 144), "Saving", true);
+      panel.showApplied(new Presentation(false, 144, false), "Saving", true);
       check(
-          !apply.isEnabled() && !vsync.isEnabled() && !limit.isEnabled(),
+          !apply.isEnabled() && !vsync.isEnabled() && !limit.isEnabled() && !suspend.isEnabled(),
           "presentation save serializes further preference edits");
       panel.showApplied(
-          new Presentation(false, 144), "Applied for this session; save failed", false);
+          new Presentation(false, 144, false), "Applied for this session; save failed", false);
       check(
           apply.isEnabled()
+              && suspend.isEnabled()
+              && !suspend.isSelected()
               && ((JTextArea) find(panel, "presentation-state")).getText().contains("save failed"),
           "save failure leaves active preferences visible and controls usable");
       panel.showApplied(new Presentation(true, 60), "Saved", false);

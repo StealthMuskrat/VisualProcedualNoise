@@ -23,12 +23,18 @@ public final class PresentationIO {
     try {
       JsonObject json =
           JsonParser.parseString(new String(bytes, StandardCharsets.UTF_8)).getAsJsonObject();
-      if (!json.keySet().equals(Set.of("schemaVersion", "vsync", "frameLimit"))
-          || integer(json, "schemaVersion") != 1
-          || !json.get("vsync").isJsonPrimitive()
-          || !json.getAsJsonPrimitive("vsync").isBoolean())
+      int version = integer(json, "schemaVersion");
+      if (version != 1 && version != 2
+          || !json.keySet()
+              .equals(
+                  version == 1
+                      ? Set.of("schemaVersion", "vsync", "frameLimit")
+                      : Set.of("schemaVersion", "vsync", "frameLimit", "suspendWhenMinimized")))
         throw new IllegalArgumentException("Unsupported presentation preferences");
-      return new Presentation(json.get("vsync").getAsBoolean(), integer(json, "frameLimit"));
+      return new Presentation(
+          bool(json, "vsync"),
+          integer(json, "frameLimit"),
+          version == 1 || bool(json, "suspendWhenMinimized"));
     } catch (RuntimeException e) {
       throw new IOException("Invalid presentation preferences: " + e.getMessage(), e);
     }
@@ -41,11 +47,19 @@ public final class PresentationIO {
     return primitive.getAsBigDecimal().intValueExact();
   }
 
+  private static boolean bool(JsonObject json, String name) {
+    var primitive = json.getAsJsonPrimitive(name);
+    if (primitive == null || !primitive.isBoolean())
+      throw new IllegalArgumentException("Expected boolean " + name);
+    return primitive.getAsBoolean();
+  }
+
   public static void save(Path path, Presentation presentation) throws IOException {
     JsonObject json = new JsonObject();
-    json.addProperty("schemaVersion", 1);
+    json.addProperty("schemaVersion", 2);
     json.addProperty("vsync", presentation.vsync());
     json.addProperty("frameLimit", presentation.frameLimit());
+    json.addProperty("suspendWhenMinimized", presentation.suspendWhenMinimized());
     PresetIO.atomicWrite(path, PresetIO.JSON.toJson(json));
   }
 }

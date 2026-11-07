@@ -25,7 +25,9 @@ with tempfile.TemporaryDirectory(prefix="presentation-check-", dir=reports) as t
     app.mkdir(parents=True)
     preferences = app / "presentation.json"
     environment = dict(os.environ, LOCALAPPDATA=str(app.parent))
-    for name, content in (("missing", None), ("capped", '{"schemaVersion":1,"vsync":true,"frameLimit":1}'),
+    for name, content in (("missing", None), ("legacy", '{"schemaVersion":1,"vsync":true,"frameLimit":1}'),
+                          ("suspend", '{"schemaVersion":2,"vsync":true,"frameLimit":1,"suspendWhenMinimized":true}'),
+                          ("continue", '{"schemaVersion":2,"vsync":true,"frameLimit":1,"suspendWhenMinimized":false}'),
                           ("corrupt", "invalid preferences " * 1000)):
         if content is not None:
             preferences.write_text(content)
@@ -38,11 +40,11 @@ with tempfile.TemporaryDirectory(prefix="presentation-check-", dir=reports) as t
         if "Using default presentation" in completed.stdout:
             raise SystemExit("Offline mode attempted to load desktop preferences")
         report = json.loads((root / f"{name}.json").read_text())
-        if report["presentationRequest"] != {"vsync": False, "frameLimit": 0} or report["referenceTick"] != 64:
+        if report["presentationRequest"] != {"vsync": False, "frameLimit": 0, "suspendWhenMinimized": False} or report["referenceTick"] != 64:
             raise SystemExit("Offline mode applied desktop presentation timing")
         if content is None and preferences.exists() or content is not None and preferences.read_text() != content:
             raise SystemExit("Offline mode changed presentation preferences")
-    for name in ("capped", "corrupt"):
+    for name in ("legacy", "suspend", "continue", "corrupt"):
         if (root / f"{name}.png").read_bytes() != (root / "missing.png").read_bytes():
             raise SystemExit("Presentation preferences changed offline image output")
         with zipfile.ZipFile(root / "missing.vstate") as a, zipfile.ZipFile(root / f"{name}.vstate") as b:

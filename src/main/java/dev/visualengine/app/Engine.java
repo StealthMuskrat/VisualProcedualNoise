@@ -9,6 +9,7 @@ import dev.visualengine.export.TextureMap;
 import dev.visualengine.gpu.*;
 import dev.visualengine.model.PresetMorph;
 import dev.visualengine.model.Settings;
+import dev.visualengine.platform.DesktopLifecycle;
 import dev.visualengine.platform.Presentation;
 import dev.visualengine.platform.PresentationIO;
 import dev.visualengine.platform.Window;
@@ -33,6 +34,7 @@ public final class Engine implements AutoCloseable {
   private final Playback clock = new Playback();
   private final ControlSignals signals = new ControlSignals();
   private final FramePacer pacer = new FramePacer();
+  private final DesktopLifecycle desktop = new DesktopLifecycle();
   private Presentation presentation = Presentation.DEFAULT;
   private boolean presentationBusy;
   private ReplayLog playbackLog, recordingLog;
@@ -46,7 +48,7 @@ public final class Engine implements AutoCloseable {
   private Window window;
   private Renderer renderer;
   private ControlPanel controls;
-  private boolean step, reset, fullscreen, freeze, discardElapsed;
+  private boolean step, reset, freeze, discardElapsed;
   private final dev.visualengine.export.Benchmark benchmark;
   private Path capture;
   private Command.Still stillCapture;
@@ -128,7 +130,8 @@ public final class Engine implements AutoCloseable {
       presentation =
           new Presentation(
               options.vsync == null ? presentation.vsync() : options.vsync,
-              options.frameLimit == null ? presentation.frameLimit() : options.frameLimit);
+              options.frameLimit == null ? presentation.frameLimit() : options.frameLimit,
+              presentation.suspendWhenMinimized());
     }
     window = new Window(options.width, options.height, options.headless, presentation);
     presentation = window.presentation();
@@ -156,10 +159,7 @@ public final class Engine implements AutoCloseable {
             case GLFW_KEY_TAB -> {
               if (controls != null) controls.show();
             }
-            case GLFW_KEY_F11 -> {
-              fullscreen = !fullscreen;
-              window.fullscreen(fullscreen);
-            }
+            case GLFW_KEY_F11 -> submit(new Command("fullscreen", null));
             default -> {}
           }
         });
@@ -184,18 +184,27 @@ public final class Engine implements AutoCloseable {
     for (int warm = 0; warm < options.warmup; warm++) advance(0, 0, false);
     double last = glfwGetTime();
     int rendered = 0;
-    double[] px = {0}, py = {0};
-    int[] ww = {options.width}, wh = {options.height};
     while (!window.closing() && (options.frames == 0 || rendered < options.frames)) {
       long frameStart = System.nanoTime();
       glfwPollEvents();
       window.resize();
       drain();
       if (window.closing()) break;
-      if (window.width == 0 || window.height == 0) {
-        last = glfwGetTime();
+      if (window.consumeTimingReset()) desktop.interrupt();
+      var activity =
+          desktop.update(
+              options.headless,
+              window.iconified(),
+              window.width,
+              window.height,
+              presentation.suspendWhenMinimized());
+      if (activity.discardElapsed()) {
         discardElapsed = true;
+        clock.discardBacklog();
         pacer.reset();
+      }
+      if (activity.suspended()) {
+        last = glfwGetTime();
         glfwWaitEventsTimeout(.1);
         continue;
       }
@@ -228,18 +237,16 @@ public final class Engine implements AutoCloseable {
         steps = 1;
         step = false;
       }
-      glfwGetCursorPos(window.handle, px, py);
-      glfwGetWindowSize(window.handle, ww, wh);
-      double x = (px[0] / Math.max(1, ww[0]) * 2 - 1) * window.width / window.height,
-          y = 1 - py[0] / Math.max(1, wh[0]) * 2;
-      boolean brush =
-          glfwGetWindowAttrib(window.handle, GLFW_FOCUSED) == GLFW_TRUE
-              && glfwGetMouseButton(window.handle, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+      var pointer = window.pointer();
+      double x = pointer.x(), y = pointer.y();
+      boolean brush = pointer.brush();
       for (int j = 0; j < steps; j++) advance(x, y, brush);
       if (playbackLog != null) {
         x = replayX;
         y = replayY;
         brush = replayBrush;
+      } else if (steps > 0) {
+        brush = lastBrush;
       }
       if (resumeFrame && steps == 0) {
         x = renderedPointer.x();
@@ -351,6 +358,7 @@ public final class Engine implements AutoCloseable {
 
   private void advance(double x, double y, boolean brush) {
     long nextTick = clock.tick() + 1;
+    if (playbackLog == null) brush = window.tickBrush(brush);
     if (playbackLog != null) {
       for (var event : playbackLog.at(nextTick)) {
         if (event.kind().equals("controls")) {
@@ -431,6 +439,13 @@ public final class Engine implements AutoCloseable {
     boolean resetBefore = reset;
     try {
       switch (c.type()) {
+        case "fullscreen" -> {
+          if (!options.headless) {
+            boolean enabled = window.toggleFullscreen();
+            status(enabled ? "Fullscreen on current monitor" : "Restored windowed placement");
+          }
+          return;
+        }
         case "presentation" -> {
           if (options.headless)
             throw new IllegalArgumentException("Presentation controls are desktop-only");
@@ -958,6 +973,7 @@ public final class Engine implements AutoCloseable {
     lastBrush = false;
     reset = step = freeze = false;
     discardElapsed = true;
+    if (!options.headless) window.interruptInput();
     undo.clear();
     previous.close();
     if (controls != null) controls.sync(settings);
