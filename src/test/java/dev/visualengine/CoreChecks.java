@@ -192,6 +192,7 @@ public final class CoreChecks {
     count += AuthoringDiagnosticChecks.run();
     count += SourceBoundsChecks.run();
     count += SceneHistoryChecks.run();
+    count += GraphNavigationChecks.run();
     count += GraphEditChecks.run();
     count += GraphEditUiChecks.run();
     count += AuthoringUiChecks.run();
