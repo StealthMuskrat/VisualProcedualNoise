@@ -194,6 +194,7 @@ public final class CoreChecks {
     count += SceneHistoryChecks.run();
     count += GraphNavigationChecks.run();
     count += GroupCaptureChecks.run();
+    count += GroupUnpackChecks.run();
     count += GraphConnectionChecks.run();
     count += GraphEditChecks.run();
     count += GraphEditUiChecks.run();

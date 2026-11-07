@@ -253,6 +253,93 @@ public final class GraphTemplates {
     }
   }
 
+  /** Copy one pinned instance into the root draft while retaining explicit type boundaries. */
+  public static EffectGraph unpack(
+      EffectGraph graph, String selected, List<EffectControl> controls) {
+    Objects.requireNonNull(graph);
+    var instance =
+        graph.nodes.stream().filter(n -> n.id().equals(selected)).findFirst().orElse(null);
+    if (instance == null || instance.kind() != EffectGraph.Kind.GROUP || instance.bypass())
+      throw problem(
+          List.of(String.valueOf(selected)), "Select a non-bypassed GROUP instance to unpack");
+    GraphCompiler.compile(graph, controls);
+    var definition =
+        graph.groups.stream()
+            .filter(g -> g.key().equals(instance.template()))
+            .findFirst()
+            .orElseThrow();
+    if (graph.nodes.size() + definition.inputs().size() + definition.nodes().size() > 64)
+      throw problem(List.of(selected), "Unpacking would exceed 64 root nodes");
+    Set<String> used = new HashSet<>();
+    graph.nodes.forEach(n -> used.add(n.id()));
+    Map<String, String> ports = new LinkedHashMap<>(), names = new LinkedHashMap<>();
+    List<EffectGraph.Node> additions = new ArrayList<>();
+    for (int i = 0; i < definition.inputs().size(); i++) {
+      var port = definition.inputs().get(i);
+      String name = freshRootName(instance.id() + "_input" + i, used);
+      ports.put(port.name(), name);
+      additions.add(
+          new EffectGraph.Node(
+              name,
+              EffectGraph.Kind.CHECK_SOURCE,
+              List.of(instance.inputs().get(i)),
+              port.type().name(),
+              instance.x(),
+              instance.y(),
+              false,
+              "",
+              "Input " + port.name()));
+    }
+    for (var node : definition.nodes())
+      names.put(node.id(), freshRootName(instance.id() + "_" + node.id(), used));
+    for (var node : definition.nodes()) {
+      boolean input = node.kind() == EffectGraph.Kind.INPUT;
+      additions.add(
+          new EffectGraph.Node(
+              names.get(node.id()),
+              input ? EffectGraph.Kind.ALIAS : node.kind(),
+              input
+                  ? List.of(ports.get(node.expression()))
+                  : node.inputs().stream().map(names::get).toList(),
+              input ? "0" : node.expression(),
+              node.x(),
+              node.y(),
+              input ? false : node.bypass(),
+              node.group(),
+              node.comment(),
+              input ? "" : node.template(),
+              node.seedKey()));
+    }
+    EffectGraph next = graph.copy();
+    next.nodes.set(
+        next.nodes.indexOf(instance),
+        new EffectGraph.Node(
+            instance.id(),
+            EffectGraph.Kind.CHECK_SOURCE,
+            List.of(names.get(definition.output())),
+            definition.outputType().name(),
+            instance.x(),
+            instance.y(),
+            false,
+            instance.group(),
+            instance.comment(),
+            "",
+            instance.seedKey()));
+    next.nodes.addAll(additions);
+    GraphCompiler.compile(next, controls);
+    return next;
+  }
+
+  private static String freshRootName(String base, Set<String> used) {
+    String name = base.substring(0, Math.min(48, base.length()));
+    int counter = 1;
+    while (!used.add(name)) {
+      String suffix = "_" + (++counter);
+      name = base.substring(0, Math.min(48 - suffix.length(), base.length())) + suffix;
+    }
+    return name;
+  }
+
   public static EffectGraph capture(
       EffectGraph graph, String id, String version, List<EffectControl> controls) {
     return capture(graph, id, version, controls, List.of());
