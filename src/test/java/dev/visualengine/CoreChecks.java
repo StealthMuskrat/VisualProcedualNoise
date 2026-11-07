@@ -212,6 +212,7 @@ public final class CoreChecks {
     count += ShaderCacheChecks.run();
     count += PeakBudgetChecks.run();
     count += dev.visualengine.export.OutputPairChecks.run();
+    count += FileJobsChecks.run();
     System.out.println("Core checks passed: " + count);
   }
 
