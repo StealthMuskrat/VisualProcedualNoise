@@ -417,6 +417,7 @@ public final class AuthoringPanel extends JPanel {
       graph = candidate;
       canvas.cancelDrag();
       output.setText(graph.output);
+      connections.sync(graph, selected);
       diagnosticNode = null;
       diagnostic.setText("Submitted " + compiled.order().size() + " reachable nodes");
       canvas.repaint();

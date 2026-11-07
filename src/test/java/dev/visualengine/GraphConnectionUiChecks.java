@@ -284,6 +284,18 @@ public final class GraphConnectionUiChecks {
           check(
               tabs.getSelectedIndex() == 1 && id.getText().equals("point"),
               "Show target reveals the selected node on the canvas");
+          panel.sync(settings);
+          choose(target, "time");
+          click(panel, "preview");
+          choose(source, "coord");
+          click(panel, "connection-append");
+          comment.setText("pending repair");
+          click(panel, "update");
+          check(
+              ((JTextField) find(panel, "output")).getText().equals("time"),
+              "connection edits after an accepted preview preserve its active draft output");
+          panel.sync(settings);
+          choose(target, "point");
           tabs.setSelectedIndex(2);
           slots.setSelectedIndex(0);
           choose(source, "shifted");

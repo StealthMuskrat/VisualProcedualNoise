@@ -76,6 +76,16 @@ The compiler validates graph fragments, removes disconnected execution work, top
 
 EXPRESSION nodes accept one to four numeric inputs, named `input0` through `input3` inside the expression. Inputs and output may be scalar or vector2/3/4. These names are reserved from control descriptors. Distances and region IDs still require explicit conversion before arithmetic. Expressions bind parsed syntax nodes to generated values, so input expressions never become unvalidated shader text.
 
+## Ordered connections
+
+Version 0.25 adds a Connections tab sharing the selected root node with the canvas and node navigator. Choose a target, select an ordered input, and choose a source node. Replace input reroutes that one slot. Append input adds a final slot; Remove input removes only the selected occurrence, including when a source is used more than once. Move up and Move down preserve the relative order of other inputs. The list uses zero-based `input0`, `input1`, … ordering, matching EXPRESSION bindings and the declaration order of GROUP inputs.
+
+Source and target choices show IDs and operations. Missing source IDs remain visible as missing nodes and can be replaced or removed. Selecting choices or slots changes no graph data and consumes no undo history. A changed connection records one draft undo entry; unchanged replacement/reordering records none. Shift-click append uses the same connection operations. Show target reveals the current target on the Node graph canvas.
+
+Connection changes edit the draft and immediately show arity, type, missing-link or cycle diagnostics. Incomplete drafts remain editable. Apply graph in Node graph validates the complete graph before submitting it to the renderer. A valid reroute can change the field; invalid candidates retain the accepted scene. Undo graph edit restores the links and selected target. Renames, add/delete, undo and scene sync refresh the connection choices; scene sync clears source/slot selection and draft history.
+
+Connection actions use the stored draft links and replace any unfinished text in Input node IDs with the accepted list. Other unfinished property fields remain available and still require Update selected. Rerouting preserves node IDs, seeds, coordinates, output, comments and embedded group revisions. These root edits do not alter the contents of pinned group definitions. Native verification confirms a changed domain changes the rendered field, held edits preserve simulation state, and undo restores the original material, image and next-tick evolution.
+
 ## Reusable graph groups
 
 Save graph as reusable group captures the current scalar graph under an ID and semantic version, replaces it with a GROUP instance, and embeds its definition. An existing revision cannot be overwritten; save a new version instead. Enter the exact `ID@version` in the Group revision field when adding instances. Inputs are listed in declaration order. Undo restores the previous draft.
