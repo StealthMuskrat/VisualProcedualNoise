@@ -34,6 +34,7 @@ public final class AuthoringPanel extends JPanel {
   private final JTextArea diagnostic = new JTextArea("Ready", 3, 28);
   private final JTabbedPane tabs = new JTabbedPane();
   private final ConnectionPanel connections;
+  private final GroupCapturePanel groups;
   private String diagnosticNode;
 
   private record Draft(EffectGraph graph, String selected) {}
@@ -193,27 +194,8 @@ public final class AuthoringPanel extends JPanel {
     applyGraph.addActionListener(e -> applyGraph());
     edit.add(applyGraph);
     JButton captureGroup = new JButton("Save graph as reusable group");
-    captureGroup.addActionListener(
-        e -> {
-          String key =
-              JOptionPane.showInputDialog(
-                  this, "Group ID@version", "local.group" + (graph.groups.size() + 1) + "@1.0.0");
-          if (key == null) return;
-          try {
-            int separator = key.lastIndexOf('@');
-            if (separator < 1) throw new IllegalArgumentException("Use group ID@version");
-            var next =
-                GraphTemplates.capture(
-                    graph, key.substring(0, separator), key.substring(separator + 1), controls);
-            remember();
-            graph = next;
-            output.setText(graph.output);
-            select(graph.output);
-            refresh();
-          } catch (Exception ex) {
-            diagnostic.setText(ex.getMessage());
-          }
-        });
+    captureGroup.setName("authoring-open-groups");
+    captureGroup.addActionListener(e -> tabs.setSelectedIndex(3));
     edit.add(captureGroup);
     edit.add(new JLabel("Shift-click a target to connect from selection"));
     nodes.add(edit, BorderLayout.SOUTH);
@@ -229,6 +211,9 @@ public final class AuthoringPanel extends JPanel {
               if (node != null) canvas.reveal(node);
             });
     tabs.addTab("Connections", connections);
+    groups = new GroupCapturePanel(this::captureGroup, error -> showProblem(error, false, true));
+    groups.reset(graph);
+    tabs.addTab("Groups", groups);
     add(tabs, BorderLayout.CENTER);
     JScrollPane messages = new JScrollPane(diagnostic);
     messages.setPreferredSize(
@@ -359,6 +344,24 @@ public final class AuthoringPanel extends JPanel {
     canvas.repaint();
   }
 
+  private void captureGroup(GroupCapturePanel.Request request) {
+    try {
+      var candidate =
+          GraphTemplates.capture(
+              graph, request.id(), request.version(), controls, request.inputs());
+      remember();
+      graph = candidate;
+      output.setText(graph.output);
+      groups.clearInputs();
+      select(graph.output);
+      refresh();
+      tabs.setSelectedIndex(1);
+      canvas.reveal(find(graph.output));
+    } catch (IllegalArgumentException error) {
+      showProblem(error, false, true);
+    }
+  }
+
   private void editConnections(EffectGraph candidate, int slot) {
     if (!GraphEdits.same(graph, candidate)) remember();
     graph = candidate;
@@ -461,6 +464,7 @@ public final class AuthoringPanel extends JPanel {
 
   private void refresh() {
     refreshNavigator();
+    groups.sync(graph);
     connections.sync(graph, selected);
     try {
       var c = GraphCompiler.compile(graph, controls);
@@ -481,6 +485,7 @@ public final class AuthoringPanel extends JPanel {
     output.setText(graph.output);
     canvas.resetView();
     connections.resetSelection();
+    groups.reset(graph);
     nodeSearch.setText("");
     select(graph.output);
     refresh();

@@ -148,7 +148,19 @@ final class ConnectionPanel extends JPanel {
         for (int i = 0; i < node.inputs().size(); i++) {
           String name = node.inputs().get(i);
           var from = findChoice(choices, name);
-          slots.addElement("input" + i + " ← " + (from == null ? name + " · missing node" : from));
+          String label = "input" + i;
+          if (node.kind() == EffectGraph.Kind.GROUP) {
+            var definition =
+                graph.groups.stream()
+                    .filter(g -> g.key().equals(node.template()))
+                    .findFirst()
+                    .orElse(null);
+            if (definition != null && i < definition.inputs().size()) {
+              var port = definition.inputs().get(i);
+              label += " (" + port.name() + ": " + port.type() + ")";
+            }
+          }
+          slots.addElement(label + " ← " + (from == null ? name + " · missing node" : from));
         }
       inputs.setModel(slots);
       selectInput(previousSlot);
