@@ -7,10 +7,12 @@ Recorded November 6 2026. Source implementation includes the renderer, sixteen r
 | Check | Result |
 | --- | --- |
 | Java 25 compilation and distribution assembly | Passed with Temurin 25.0.5+8 |
-| JVM contracts | 436 passed: parsing, types, bounds, graph cycles and pruning, seeds, preset migrations, modulation, clocks, replay, custom controls, hashes, typed groups, checkpoint archives, quality profiles, still metadata, discovery integrity/branching/gallery, 16-bit map encoding/metadata/UI, morph compatibility/interpolation/phases/command ordering/UI, directional formulas/effects/hashes/UI, seam/loop metrics/context/UI, benchmark attribution/percentiles/workloads/CLI, presentation preference/migration/deadline/UI contracts, desktop placement/input/suspension, device capability/limit/report contracts, bounded diagnostic retention and memory limits |
-| OpenGL contracts | 155 passed on Mesa llvmpipe, OpenGL 4.5 core, Mesa 25.2.8, LLVM 20.1.2 |
+| JVM contracts | 466 passed: parsing, types, bounds, graph cycles and pruning, seeds, preset migrations, modulation, clocks, replay, custom controls, hashes, typed groups, checkpoint archives, quality profiles, still metadata, discovery integrity/branching/gallery, 16-bit map encoding/metadata/UI, morph compatibility/interpolation/phases/command ordering/UI, directional formulas/effects/hashes/UI, seam/loop metrics/context/UI, benchmark attribution/percentiles/workloads/CLI, presentation preference/migration/deadline/UI contracts, desktop placement/input/suspension, device capability/limit/report contracts, bounded diagnostic retention, material-cache ownership/LRU/transactions, framed source identity, bounded includes and memory limits |
+| OpenGL contracts | 170 passed on Mesa llvmpipe, OpenGL 4.5 core, Mesa 25.2.8, LLVM 20.1.2 |
 | Authoring behavior | Custom values change the image without relinking; encapsulating seeded graphs preserves their rendered output; typed group expressions link and render |
 | Recipe coverage | All sixteen recipes compiled and rendered; generated gallery includes PNGs and complete sidecars |
+| Material shader cache | Actual linked programs were reused across effect switches; numeric edits performed no lookup. Reused uniforms matched a fresh restored scene, maps did not leak output mode, and native deletion requests followed bounded LRU eviction. Candidate resource failure, broken source and early/late F5 failures preserved the working image, cache generation and GPU state |
+| Installed shader switching | Retained and active-only replay runs reproduced identical PNGs, clocks, smoothing, replay and every GPU resource. Cross-policy checkpoint continuation matched an uninterrupted run; invalid options and oversized development shader files preserved their destinations. Lookup/build counters verified skipped material compilations without a timing-speedup claim |
 | Device capabilities and preflight | Real format/indexed/64-bit queries agreed with the context snapshot and preserved GL bindings. Worker access was rejected. A renderer with constrained advertised limits rejected grid, history, particle, still, map and viewport requests while preserving its program, finished image, tracked memory and every GPU state byte |
 | Installed GPU diagnosis | Standalone compatible reports, actual context-creation failures through a GLVND ICD override, explicit unknown-capabilities serialization, Unicode/spaced paths, preference isolation, retained logs, rejected argument combinations and failed-publication preservation passed |
 | Directional fields | 4096 raw probe and 6144 material-height samples matched an independent double-precision reference within 0.0002; orientation response, half-turn symmetry, seeded repeatability, boundary continuity, clamps, nonfinite inputs and finite normal export passed |
@@ -44,7 +46,7 @@ Recorded November 6 2026. Source implementation includes the renderer, sixteen r
 | Sequence timing | 24 fps sequence used ticks 0, 5, 10 and 15 for its first four frames |
 | Installation contents | Gradle distribution contains engine resources, pinned natives, notices and licenses |
 
-The GPU suite intentionally compiles an invalid shader to test fallback. Its compiler error in the log is expected. The suite fails if the previous image is lost.
+The GPU suite intentionally compiles invalid shaders to test fallback and late reload failure. Their compiler errors in the log are expected. The suite fails if the previous image or state is lost.
 
 ## Software baseline
 
@@ -82,6 +84,8 @@ Before public release, run the specification's matrix on physical Windows machin
 The installed Linux script launcher was exercised with replay exports. A native Linux app image was built, but its launcher could not be validated in this sandbox because the process filesystem is unavailable. Linux app images are outside the Windows distribution target.
 
 ## Scope of this release
+
+Version 0.14 adds [bounded linked material reuse](SHADER_CACHE.md), owner-thread candidate transactions, fresh reload generations, source-expansion bounds, a session-only active-program policy and diagnostic counters. Program fingerprints now use stage-tagged UTF-8 length framing; presets/effects/replay remain compatible and checkpoints keep exact engine-version/source checks. The implementation verifies program reuse and unchanged output, without claiming measured Windows editing speedups or asynchronous compilation.
 
 Version 0.13 adds [GPU capability checks and diagnostic reports](GPU_DIAGNOSTICS.md), cached device-bound resource preflight, a standalone hidden-context probe, Files-tab report export, benchmark capability metadata and bounded current/previous startup logs. Advertised compatibility is distinct from a tested workload or available-memory guarantee. Preset, effect and replay formats remain unchanged; checkpoints retain exact engine-version compatibility. Physical Windows GPU and desktop acceptance remains pending.
 

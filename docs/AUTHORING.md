@@ -42,6 +42,10 @@ Imported groups can declare named typed ports. INPUT nodes refer to those port n
 
 Definitions are embedded in presets and effects and identified by `ID@version`; there are no external template files to change behind a saved scene. Generator seed identities survive encapsulation. The compiler checks port types, missing revisions, recursion, cycles and expansion cost. Limits are 64 root nodes, 16 embedded revisions, 32 nodes and eight ports per definition, four nested instances, and 256 expanded nodes. The existing expression-cost and source-size limits still apply.
 
+## Linked program reuse
+
+Recent recipes, formulas and graphs can reuse their linked material program when revisited. Numeric uniforms still update without compiling. Retention is bounded and failed edits keep the working scene; a successful F5 starts a fresh generation. See [shader cache policy, source limits and diagnostics](SHADER_CACHE.md).
+
 ## Effect files
 
 Effect API 2 adds user-defined FLOAT, VEC2, VEC3 and VEC4 controls. The Effect controls tab edits descriptors and generates component controls from their labels, units, defaults, bounds, steps, linear/logarithmic mapping and update policy. Use a descriptor ID directly in a formula. Values are uploaded as namespaced uniforms; ordinary value edits keep the linked program. SMOOTHED values converge on fixed ticks, while RESET controls restart persistent state.

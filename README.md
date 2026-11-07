@@ -52,6 +52,8 @@ Version 0.12 adds monitor-aware fullscreen restore, a saved **Suspend while mini
 
 Version 0.13 adds explicit GPU capability checks, resource-limit preflight, saved capability reports and bounded startup logs with previous-session retention. Use **Files → Save GPU capability report** or `--diagnose-gpu gpu-report.json`. See [GPU reports, limits and failure diagnosis](docs/GPU_DIAGNOSTICS.md).
 
+Version 0.14 adds bounded reuse of linked material shaders, transactional cache generations for reloads, and bounded engine-source expansion. Use `--shader-cache off` for active-program-only retention; diagnostic and benchmark reports expose cache counts. See [shader retention, source bounds and verification](docs/SHADER_CACHE.md).
+
 Discovery bookmarks save artwork and its complete restarting configuration under the user-data directory. A/B comparison shows a frozen or saved finished frame on the left and the live scene on the right; this does not run two independent simulations. GPU storage is estimated before quality changes and capped at 512 MiB.
 
 ## Verification
