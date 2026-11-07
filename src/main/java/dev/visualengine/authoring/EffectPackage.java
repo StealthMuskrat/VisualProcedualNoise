@@ -79,11 +79,11 @@ public final class EffectPackage {
 
   public void apply(Settings s) {
     validate();
+    s.modulations.clear();
     s.installEffectControls(controls, controlValues);
     s.tileMode = false;
     s.tilePreview = false;
     s.loopSeconds = 0;
-    s.modulations.clear();
     s.feedbackEnabled = feedbackEnabled;
     s.pigmentEnabled = pigmentEnabled;
     s.reactionEnabled = reactionEnabled;

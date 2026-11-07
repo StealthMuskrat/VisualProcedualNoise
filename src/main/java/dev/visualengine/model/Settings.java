@@ -170,7 +170,10 @@ public final class Settings {
       throw new IllegalArgumentException("Invalid quality, palette, time or diagnostic settings");
     if (modulations == null || modulations.size() > 32)
       throw new IllegalArgumentException("At most 32 modulation mappings are allowed");
-    modulations.forEach(dev.visualengine.time.Modulation::validate);
+    for (var mapping : modulations) {
+      if (mapping == null) throw new IllegalArgumentException("Null modulation mapping");
+      mapping.validate(effectControls);
+    }
     if (!Double.isFinite(loopSeconds)
         || loopSeconds < 0
         || loopSeconds > 3600
@@ -202,6 +205,10 @@ public final class Settings {
         .collect(java.util.stream.Collectors.toSet())
         .containsAll(values.keySet()))
       throw new IllegalArgumentException("Unknown effect control value");
+    for (var mapping : modulations) {
+      if (mapping == null) throw new IllegalArgumentException("Null modulation mapping");
+      mapping.validate(controls);
+    }
     effectControls = new ArrayList<>(controls);
     effectValues.clear();
     effectValues.putAll(next);

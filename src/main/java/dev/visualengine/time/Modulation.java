@@ -1,6 +1,6 @@
 package dev.visualengine.time;
 
-import dev.visualengine.model.Settings;
+import dev.visualengine.authoring.EffectControl;
 import java.util.*;
 
 public record Modulation(
@@ -13,6 +13,15 @@ public record Modulation(
     double high,
     double phase,
     double[] keys) {
+  public Modulation {
+    keys = keys == null ? null : keys.clone();
+  }
+
+  @Override
+  public double[] keys() {
+    return keys == null ? null : keys.clone();
+  }
+
   public enum Source {
     SINE,
     TRIANGLE,
@@ -29,18 +38,23 @@ public record Modulation(
   }
 
   public void validate() {
+    validate(List.of());
+  }
+
+  public void validate(List<EffectControl> controls) {
+    ModulationTarget target = ModulationTarget.resolve(controls, destination);
+    double limit = target.effect() ? 1e6 : 100;
     if (id == null
         || id.length() > 128
         || source == null
         || mode == null
-        || Settings.PARAMETERS.stream().noneMatch(p -> p.id().equals(destination))
         || !Double.isFinite(period)
         || period < .1
         || period > 3600
         || !Double.isFinite(low)
         || !Double.isFinite(high)
-        || Math.abs(low) > 100
-        || Math.abs(high) > 100
+        || Math.abs(low) > limit
+        || Math.abs(high) > limit
         || !Double.isFinite(phase)
         || Math.abs(phase) > 3600) throw new IllegalArgumentException("Invalid modulation mapping");
     if (keys == null || keys.length < 4 || keys.length > 64 || keys.length % 2 != 0)
@@ -98,6 +112,6 @@ public record Modulation(
   }
 
   public Modulation copy() {
-    return new Modulation(id, destination, source, mode, period, low, high, phase, keys.clone());
+    return new Modulation(id, destination, source, mode, period, low, high, phase, keys);
   }
 }

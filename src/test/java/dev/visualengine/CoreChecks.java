@@ -213,6 +213,7 @@ public final class CoreChecks {
     count += PeakBudgetChecks.run();
     count += dev.visualengine.export.OutputPairChecks.run();
     count += FileJobsChecks.run();
+    count += EffectModulationChecks.run();
     System.out.println("Core checks passed: " + count);
   }
 

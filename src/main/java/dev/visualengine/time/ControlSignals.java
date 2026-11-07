@@ -48,13 +48,14 @@ public final class ControlSignals {
 
   public State snapshot(Settings settings) {
     Map<String, List<Double>> values = new LinkedHashMap<>();
-    effectSmooth.forEach((id, v) -> {
-      if (settings.effectValues.containsKey(id)) {
-        var c = settings.effectControl(id);
-        if (v.size() == c.type().width)
-          values.put(id, v.stream().map(x -> Math.clamp(x, c.minimum(), c.maximum())).toList());
-      }
-    });
+    effectSmooth.forEach(
+        (id, v) -> {
+          if (settings.effectValues.containsKey(id)) {
+            var c = settings.effectControl(id);
+            if (v.size() == c.type().width)
+              values.put(id, v.stream().map(x -> Math.clamp(x, c.minimum(), c.maximum())).toList());
+          }
+        });
     return new State(motionClock, colorClock, smooth, values);
   }
 
@@ -81,25 +82,13 @@ public final class ControlSignals {
     effectSmooth.putAll(target.effectValues);
   }
 
+  /** Resolve an explicit paused edit at held simulation time without advancing any clock. */
+  public void snap(Settings target, double time) {
+    snap(resolve(target, time));
+  }
+
   public Settings tick(Settings target, double time) {
-    Settings result = target.copy();
-    for (var mapping : target.modulations) {
-      double value = mapping.evaluate(time, target.seed, target.get("agitation")),
-          old = result.get(mapping.destination());
-      double resolved =
-          switch (mapping.mode()) {
-            case ADD -> old + value;
-            case MULTIPLY -> old * value;
-            case REPLACE -> value;
-          };
-      var parameter =
-          Settings.PARAMETERS.stream()
-              .filter(p -> p.id().equals(mapping.destination()))
-              .findFirst()
-              .orElseThrow();
-      result.set(
-          mapping.destination(), Math.clamp(resolved, parameter.minimum(), parameter.maximum()));
-    }
+    Settings result = resolve(target, time);
     for (var parameter : Settings.PARAMETERS) {
       double value = result.get(parameter.id()), old = smooth.getOrDefault(parameter.id(), value);
       double next =
@@ -111,7 +100,7 @@ public final class ControlSignals {
     }
     effectSmooth.keySet().retainAll(target.effectValues.keySet());
     for (var c : target.effectControls) {
-      var value = target.effectValues.get(c.id());
+      var value = result.effectValues.get(c.id());
       var old = effectSmooth.getOrDefault(c.id(), value);
       List<Double> next = new ArrayList<>();
       for (int i = 0; i < value.size(); i++)
@@ -132,19 +121,40 @@ public final class ControlSignals {
     return result;
   }
 
+  private static Settings resolve(Settings target, double time) {
+    Settings result = target.copy();
+    for (var mapping : target.modulations) {
+      var destination = ModulationTarget.resolve(target.effectControls, mapping.destination());
+      double value = mapping.evaluate(time, target.seed, target.get("agitation")),
+          old = destination.read(result);
+      double resolved =
+          switch (mapping.mode()) {
+            case ADD -> old + value;
+            case MULTIPLY -> old * value;
+            case REPLACE -> value;
+          };
+      destination.write(result, resolved);
+    }
+    return result;
+  }
+
   public Settings frame(Settings target) {
     Settings result = target.copy();
-    smooth.forEach((id, v) -> {
-      if (!id.equals("exposure") && !id.equals("bloom")) result.values.put(id, v);
-    });
-    effectSmooth.forEach((id, value) -> {
-      if (result.effectValues.containsKey(id)
-          && value.size() == result.effectControl(id).type().width) {
-        var c = result.effectControl(id);
-        result.setEffectValue(
-            id, value.stream().map(v -> Math.clamp(v, c.minimum(), c.maximum())).toList());
-      }
-    });
+    smooth.forEach(
+        (id, v) -> {
+          if (!id.equals("exposure") && !id.equals("bloom")
+              || target.modulations.stream().anyMatch(m -> m.destination().equals(id)))
+            result.values.put(id, v);
+        });
+    effectSmooth.forEach(
+        (id, value) -> {
+          if (result.effectValues.containsKey(id)
+              && value.size() == result.effectControl(id).type().width) {
+            var c = result.effectControl(id);
+            result.setEffectValue(
+                id, value.stream().map(v -> Math.clamp(v, c.minimum(), c.maximum())).toList());
+          }
+        });
     result.motionClock = motionClock;
     result.colorClock = colorClock;
     return result;

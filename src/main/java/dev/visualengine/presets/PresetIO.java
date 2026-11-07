@@ -7,7 +7,7 @@ import java.nio.file.*;
 import java.util.*;
 
 public final class PresetIO {
-  public static final String ENGINE_VERSION = "0.17.0";
+  public static final String ENGINE_VERSION = "0.18.0";
   public static final String REVISION = "gradient-v1-simulation-v2";
   public static final Gson JSON =
       new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
@@ -17,7 +17,7 @@ public final class PresetIO {
   public static JsonObject document(Settings settings, long tick) {
     settings.validate();
     JsonObject root = new JsonObject();
-    root.addProperty("schemaVersion", 4);
+    root.addProperty("schemaVersion", 5);
     root.addProperty("engineVersion", ENGINE_VERSION);
     root.addProperty("algorithmRevision", REVISION);
     root.addProperty("rootSeed", Long.toString(settings.seed));
@@ -37,14 +37,20 @@ public final class PresetIO {
     JsonObject root = JsonParser.parseString(text).getAsJsonObject();
     if (!root.has("schemaVersion")
         || root.get("schemaVersion").getAsInt() < 1
-        || root.get("schemaVersion").getAsInt() > 4)
+        || root.get("schemaVersion").getAsInt() > 5)
       throw new IllegalArgumentException(
-          "Unsupported preset schema. This build accepts versions 1..4.");
+          "Unsupported preset schema. This build accepts versions 1..5.");
     if (!root.has("algorithmRevision")
         || !REVISION.equals(root.get("algorithmRevision").getAsString()))
       throw new IllegalArgumentException(
           "Preset algorithm revision is incompatible; explicit migration is required.");
     Settings s = JSON.fromJson(root.get("settings"), Settings.class);
+    if (root.get("schemaVersion").getAsInt() < 5
+        && s.modulations != null
+        && s.modulations.stream()
+            .anyMatch(
+                m -> m != null && m.destination() != null && m.destination().startsWith("effect:")))
+      throw new IllegalArgumentException("Effect modulation destinations require preset schema 5");
     if (root.get("schemaVersion").getAsInt() == 1)
       for (String id : List.of("frequency", "drift", "stripeRate"))
         s.values.putIfAbsent(id, new Settings().get(id));
