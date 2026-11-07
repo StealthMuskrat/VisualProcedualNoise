@@ -62,6 +62,8 @@ Version 0.17 makes file-worker draining, cancellation and backpressure explicit.
 
 Version 0.18 adds modulation of custom scalar/vector components, editable ordered mappings and held-time paused edits. Preset schema 5 stores contextual destinations; older presets remain readable. Try `--preset examples/presets/modulated-custom.json`. See [custom modulation, smoothing and persistence](docs/MODULATION.md).
 
+Version 0.19 tracks paused/zero-speed redraw demand, skipping rendering for inactive hover and non-rendering commands. Brush previews, window refreshes and capture work still request frames. Session reports expose redraw counters. See [held-scene redraw and timing](docs/PAUSED_REDRAW.md).
+
 Discovery bookmarks save artwork and its complete restarting configuration under the user-data directory. A/B comparison shows a frozen or saved finished frame on the left and the live scene on the right; this does not run two independent simulations. GPU storage is estimated before quality changes and capped at 512 MiB.
 
 ## Verification

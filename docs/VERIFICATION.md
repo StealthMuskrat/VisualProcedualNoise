@@ -7,10 +7,12 @@ Recorded November 7 2026. Source implementation includes the renderer, sixteen r
 | Check | Result |
 | --- | --- |
 | Java 25 compilation and distribution assembly | Passed with Temurin 25.0.5+8 |
-| JVM contracts | 626 passed: parsing, types, bounds, graph cycles and pruning, seeds, preset migrations, modulation, clocks, replay, custom controls, hashes, typed groups, checkpoint archives, quality profiles, still metadata, discovery integrity/branching/gallery, 16-bit map encoding/metadata/UI, morph compatibility/interpolation/phases/command ordering/UI, directional formulas/effects/hashes/UI, seam/loop metrics/context/UI, benchmark attribution/percentiles/workloads/CLI, presentation preference/migration/deadline/UI contracts, desktop placement/input/suspension, device capability/limit/report contracts, bounded diagnostic retention, material-cache ownership/LRU/transactions, framed source identity, bounded includes, checked allocation peaks, overflow, paired file publication/rollback/recovery, bounded worker lifecycle/backpressure/cancellation, contextual effect modulation, schema 5, ordered draft editor and memory limits |
-| OpenGL contracts | 209 passed on Mesa llvmpipe, OpenGL 4.5 core, Mesa 25.2.8, LLVM 20.1.2 |
+| JVM contracts | 652 passed: parsing, types, bounds, graph cycles and pruning, seeds, preset migrations, modulation, clocks, replay, custom controls, hashes, typed groups, checkpoint archives, quality profiles, still metadata, discovery integrity/branching/gallery, 16-bit map encoding/metadata/UI, morph compatibility/interpolation/phases/command ordering/UI, directional formulas/effects/hashes/UI, seam/loop metrics/context/UI, benchmark attribution/percentiles/workloads/CLI, presentation preference/migration/deadline/UI contracts, desktop placement/input/suspension, device capability/limit/report contracts, bounded diagnostic retention, material-cache ownership/LRU/transactions, framed source identity, bounded includes, checked allocation peaks, overflow, paired file publication/rollback/recovery, bounded worker lifecycle/backpressure/cancellation, contextual effect modulation, schema 5, ordered draft editor, redraw demand/command intent and memory limits |
+| OpenGL contracts | 221 passed on Mesa llvmpipe, OpenGL 4.5 core, Mesa 25.2.8, LLVM 20.1.2 |
 | Authoring behavior | Custom values change the image without relinking; encapsulating seeded graphs preserves their rendered output; typed group expressions link and render |
 | Recipe coverage | All sixteen recipes compiled and rendered; generated gallery includes PNGs and complete sidecars |
+| Held-scene redraw | Revision coalescing, hover/brush demand, in-frame invalidation, frame-bound/offline bypass, command intent and cap preservation passed. Native hover skips preserved image, GPU bytes, clocks, material cache and storage; brush preview/release, refresh and capture preserved state. One requested tick matched direct simulation; native redraw/input/timing signals coalesced independently |
+| Installed redraw | Playing, paused, zero-speed and combined held flags produced identical offline images, GPU bytes, clocks and smoothing over 32 frames with complete frame counters. Half-open sequence ticks and held checkpoint output passed |
 | Effect-control modulation | Scalar/vector component destinations, RESET rejection, descriptor bounds, ordered combinations, independent source references, post-mapping smoothing, held-time edits, finishing display values, schema validation and immutable key arrays passed. Swing actions verified drafts, updates, reordering, stable IDs, explicit Apply and scene synchronization |
 | Modulated GPU scene | At ticks 8, 16 and 24, mapped controls matched explicit resolved uniforms in every finished pixel and GPU state byte. Numeric/mapping edits performed no material lookup. Held frames, map capture and rejected destinations preserved image and state |
 | Installed effect modulation | The bundled schema-5 preset matched its fixture. Checkpoint continuation from tick 16 to 24 through future mapping edits matched uninterrupted PNGs, clocks, replay, smoothing and every GPU resource. Held restore, actual resolved map metadata and invalid-output preservation passed |
@@ -55,6 +57,8 @@ Recorded November 7 2026. Source implementation includes the renderer, sixteen r
 | Sequence timing | 24 fps sequence used ticks 0, 5, 10 and 15 for its first four frames |
 | Installation contents | Gradle distribution contains engine resources, pinned natives, notices and licenses |
 
+All 20 installed-launcher checks passed. An initial paired-output run reported a leftover staging directory without enough diagnostics to identify its contents or cause. The same check then passed four consecutive runs; the verifier now retains bounded per-process error output and staging names on failure. This observation remains unexplained; no product cleanup fix is claimed.
+
 The GPU suite intentionally compiles invalid shaders to test fallback and late reload failure. Their compiler errors in the log are expected. The suite fails if the previous image or state is lost.
 
 ## Software baseline
@@ -93,6 +97,8 @@ Before public release, run the specification's matrix on physical Windows machin
 The installed Linux script launcher was exercised with replay exports. A native Linux app image was built, but its launcher could not be validated in this sandbox because the process filesystem is unavailable. Linux app images are outside the Windows distribution target.
 
 ## Scope of this release
+
+Version 0.19 adds [explicit paused/zero-speed redraw demand](PAUSED_REDRAW.md), coalesced native refresh/input signals, bounded wakeable idle waits and redraw diagnostics. Non-rendering commands preserve held smoothing, and zero-speed edits resolve at held time. Offline/finite-frame work bypasses idle; no measured power or rendering-speed claim is made. Creative formats remain unchanged and physical Windows event/desktop acceptance remains pending.
 
 Version 0.18 adds [custom scalar/component modulation](MODULATION.md), descriptor-aware destinations, ordered draft editing, stable source IDs, held-time paused edits and preset schema 5. Schemas 1..4 remain readable; custom destinations must declare schema 5. Exposure/bloom mappings now reach held display frames. Effect API 2 and replay format 1 remain unchanged; checkpoints keep exact engine-version/source checks.
 

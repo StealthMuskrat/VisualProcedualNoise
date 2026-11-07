@@ -44,6 +44,8 @@ After mapping, SMOOTHED effect controls converge on fixed ticks with `alpha = 1 
 
 Held frames reuse the last resolved values. Pausing and requesting a single step no longer snap modulation back to base values. Editing a mapping or uniform/smoothed value while paused resolves at the held simulation time without advancing phase clocks or GPU state. Before the first simulation tick, an unedited scene displays its base values. Mapped exposure and bloom now reach held display frames; unmapped finishing edits remain immediate.
 
+Version 0.19 applies held-time edits at zero speed too. Metadata, transport, reference, palette and shader actions preserve unfinished resolved values rather than settling them to their targets. See [redraw demand and idle timing](PAUSED_REDRAW.md).
+
 ## Persistence and continuation
 
 Preset schema **5** stores contextual destinations, source IDs, ranges, offsets and keys alongside base effect descriptors/values. Schemas 1..4 remain readable for their existing built-in destinations. A file containing custom destinations must declare schema 5; older builds reject that schema explicitly.

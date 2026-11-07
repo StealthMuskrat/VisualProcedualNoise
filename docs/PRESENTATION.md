@@ -27,7 +27,7 @@ The cap uses monotonic nanosecond deadlines. Its period rounds up to avoid inten
 
 Waiting uses `glfwWaitEventsTimeout`, allowing window events and posted commands to wake the context thread. Early wakes process queued work and recheck the same deadline; repeated pointer events cannot bypass the cap. Capture and other render-bound actions complete on the next due frame, so low caps can add latency. Applying a new presentation request resets the deadline for an immediate redraw.
 
-Paused playback or zero speed continues using event-driven idle after requested updates. Close events are checked before another frame starts. No uninterruptible frame-limiter sleep is added.
+Paused playback or zero speed uses explicit redraw demand after requested updates. Inactive hover and non-rendering commands do not submit a new scene pass; brush previews, native refresh and frame-bound work still request frames. Idle waits are wakeable and discard hidden elapsed time without bypassing the frame cap. See [held-scene redraw policy](PAUSED_REDRAW.md). Close events are checked before another frame starts. No uninterruptible frame-limiter sleep is added.
 
 Simulation retains the existing 120 Hz accumulator and eight-tick interactive catch-up budget. Low caps, high playback speed or slow frames can therefore make simulation advance more slowly than wall time. The limiter does not jump to future simulation state or change solver substeps. Use offline output for exact tick scheduling.
 
