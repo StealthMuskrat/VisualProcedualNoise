@@ -26,7 +26,8 @@ public final class AuthoringPanel extends JPanel {
   private final JTextArea diagnostic = new JTextArea("Ready", 3, 28);
   private final JTabbedPane tabs = new JTabbedPane();
   private String diagnosticNode;
-  private final Deque<EffectGraph> undo = new ArrayDeque<>();
+  private record Draft(EffectGraph graph, String selected) {}
+  private final Deque<Draft> undo = new ArrayDeque<>();
   private String selected;
   private final JTextField template = new JTextField();
   private java.util.List<EffectControl> controls = java.util.List.of();
@@ -42,6 +43,8 @@ public final class AuthoringPanel extends JPanel {
     formula.setName("authoring-node-formula");
     id.setName("authoring-node-id");
     inputs.setName("authoring-node-inputs");
+    group.setName("authoring-node-group");
+    comment.setName("authoring-node-comment");
     output.setName("authoring-output");
     kind.setName("authoring-kind");
     canvas.setName("authoring-canvas");
@@ -112,11 +115,17 @@ public final class AuthoringPanel extends JPanel {
     update.addActionListener(e -> updateSelected());
     edit.add(update);
     JButton add = new JButton("Add node");
+    add.setName("authoring-add");
     add.addActionListener(
         e -> {
+          if (graph.nodes.size() >= 64) {
+            diagnostic.setText("A graph can contain at most 64 root nodes");
+            return;
+          }
           remember();
-          String name = "node" + (graph.nodes.size() + 1);
-          while (find(name) != null) name += "x";
+          int index = graph.nodes.size() + 1;
+          String name = "node" + index;
+          while (find(name) != null) name = "node" + (++index);
           graph.nodes.add(
               new EffectGraph.Node(
                   name,
@@ -133,11 +142,13 @@ public final class AuthoringPanel extends JPanel {
         });
     edit.add(add);
     JButton delete = new JButton("Delete selected");
+    delete.setName("authoring-delete");
     delete.addActionListener(
         e -> {
+          if (find(selected) == null) return;
           remember();
           graph.nodes.removeIf(n -> n.id().equals(selected));
-          selected = null;
+          select(null);
           refresh();
         });
     edit.add(delete);
@@ -146,21 +157,19 @@ public final class AuthoringPanel extends JPanel {
     previous.addActionListener(
         e -> {
           if (!undo.isEmpty()) {
-            graph = undo.pop();
+            Draft previousDraft = undo.pop();
+            graph = previousDraft.graph();
             output.setText(graph.output);
-            select(find(selected) == null ? graph.output : selected);
+            select(find(previousDraft.selected()) == null ? graph.output : previousDraft.selected());
             refresh();
           }
         });
     edit.add(previous);
     JButton preview = new JButton("Preview selected output");
+    preview.setName("authoring-preview");
     preview.addActionListener(
         e -> {
-          if (selected != null) {
-            graph.output = selected;
-            output.setText(selected);
-            applyGraph();
-          }
+          if (selected != null) applyGraph(selected);
         });
     edit.add(preview);
     edit.add(new JLabel("Active output node"));
@@ -210,11 +219,12 @@ public final class AuthoringPanel extends JPanel {
   }
 
   private void remember() {
-    undo.push(graph.copy());
+    undo.push(new Draft(graph.copy(), selected));
     while (undo.size() > 32) undo.removeLast();
   }
 
   private void select(String name) {
+    canvas.cancelDrag();
     EffectGraph.Node n = find(name);
     selected = n == null ? null : name;
     if (n == null) {
@@ -237,7 +247,6 @@ public final class AuthoringPanel extends JPanel {
   private void updateSelected() {
     EffectGraph.Node old = find(selected);
     if (old == null) return;
-    remember();
     List<String> sources =
         inputs.getText().trim().isEmpty()
             ? List.of()
@@ -255,18 +264,34 @@ public final class AuthoringPanel extends JPanel {
             comment.getText(),
             template.getText().trim(),
             old.seedKey());
-    graph.nodes.set(graph.nodes.indexOf(old), n);
-    if (graph.output.equals(selected)) graph.output = n.id();
-    selected = n.id();
-    output.setText(graph.output);
-    refresh();
+    try {
+      EffectGraph candidate = GraphEdits.update(graph, selected, n);
+      if (!GraphEdits.same(graph, candidate)) remember();
+      graph = candidate;
+      output.setText(graph.output);
+      select(n.id());
+      refresh();
+    } catch (IllegalArgumentException error) {
+      showProblem(error, false, true);
+      id.requestFocusInWindow();
+      id.selectAll();
+    }
   }
 
   private void applyGraph() {
+    applyGraph(output.getText().trim());
+  }
+
+  private void applyGraph(String requestedOutput) {
     try {
-      graph.output = output.getText().trim();
-      var compiled = GraphCompiler.compile(graph, controls);
-      submit.accept(new Command("graph", graph.copy()));
+      EffectGraph candidate = graph.copy();
+      candidate.output = requestedOutput;
+      var compiled = GraphCompiler.compile(candidate, controls);
+      submit.accept(new Command("graph", candidate.copy()));
+      if (!GraphEdits.same(graph, candidate)) remember();
+      graph = candidate;
+      canvas.cancelDrag();
+      output.setText(graph.output);
       diagnosticNode = null;
       diagnostic.setText("Submitted " + compiled.order().size() + " reachable nodes");
       canvas.repaint();
@@ -333,6 +358,13 @@ public final class AuthoringPanel extends JPanel {
   private final class Canvas extends JPanel {
     private Point anchor;
     private EffectGraph.Node dragged;
+    private boolean dragRemembered;
+
+    void cancelDrag() {
+      dragged = null;
+      anchor = null;
+      dragRemembered = false;
+    }
 
     Canvas() {
       setPreferredSize(new Dimension(1200, 900));
@@ -372,7 +404,6 @@ public final class AuthoringPanel extends JPanel {
                 return;
               }
               select(hit.id());
-              remember();
               dragged = hit;
               anchor = e.getPoint();
             }
@@ -380,16 +411,25 @@ public final class AuthoringPanel extends JPanel {
             public void mouseDragged(MouseEvent e) {
               if (dragged == null) return;
               EffectGraph.Node now = find(dragged.id());
+              if (now == null) {
+                cancelDrag();
+                return;
+              }
               var moved =
                   dragged.moved(
                       Math.max(0, dragged.x() + e.getX() - anchor.x),
                       Math.max(0, dragged.y() + e.getY() - anchor.y));
+              if (now.equals(moved)) return;
+              if (!dragRemembered) {
+                remember();
+                dragRemembered = true;
+              }
               graph.nodes.set(graph.nodes.indexOf(now), moved);
               repaint();
             }
 
             public void mouseReleased(MouseEvent e) {
-              dragged = null;
+              cancelDrag();
             }
           };
       addMouseListener(mouse);

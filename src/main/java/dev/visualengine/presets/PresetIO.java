@@ -7,7 +7,7 @@ import java.nio.file.*;
 import java.util.*;
 
 public final class PresetIO {
-  public static final String ENGINE_VERSION = "0.22.0";
+  public static final String ENGINE_VERSION = "0.23.0";
   public static final String REVISION = "gradient-v1-simulation-v2";
   public static final Gson JSON =
       new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();

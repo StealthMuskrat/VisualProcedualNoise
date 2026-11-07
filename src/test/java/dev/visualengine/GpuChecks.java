@@ -295,6 +295,7 @@ public final class GpuChecks {
       count += EffectModulationGpuChecks.run();
       count += AuthoringDiagnosticGpuChecks.run();
       count += SourceBoundsGpuChecks.run();
+      count += GraphEditGpuChecks.run();
       count += PausedRedrawGpuChecks.run(window);
       reloadFailure(window);
       check(glGetError() == GL_NO_ERROR, "no final GL error");
