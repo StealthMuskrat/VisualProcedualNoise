@@ -94,6 +94,14 @@ public record EffectControl(
     return Formula.compile(expression, symbols(controls));
   }
 
+  public static Formula.Compiled compileField(String expression, List<EffectControl> controls) {
+    var compiled = compile(expression, controls);
+    if (compiled.root().type() != Formula.Type.FLOAT)
+      throw AuthoringDiagnostic.at(
+          expression, 0, expression.length(), "Field expression must be scalar");
+    return compiled;
+  }
+
   public static String declarations(List<EffectControl> controls) {
     validateSchema(controls);
     return String.join(

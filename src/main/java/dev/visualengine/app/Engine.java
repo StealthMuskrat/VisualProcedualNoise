@@ -914,11 +914,8 @@ public final class Engine implements AutoCloseable {
         }
         case "expression" -> {
           remember();
-          var f =
-              dev.visualengine.authoring.EffectControl.compile(
-                  (String) c.value(), settings.effectControls);
-          if (f.root().type() != dev.visualengine.authoring.Formula.Type.FLOAT)
-            throw new IllegalArgumentException("Formula output must be scalar");
+          dev.visualengine.authoring.EffectControl.compileField(
+              (String) c.value(), settings.effectControls);
           settings.expression = (String) c.value();
           settings.graphEnabled = false;
           settings.recipe = Settings.Recipe.CUSTOM;

@@ -178,10 +178,8 @@ public final class Renderer implements AutoCloseable {
                 .function();
       else {
         var compiled =
-            dev.visualengine.authoring.EffectControl.compile(
+            dev.visualengine.authoring.EffectControl.compileField(
                 settings.expression, settings.effectControls);
-        if (compiled.root().type() != dev.visualengine.authoring.Formula.Type.FLOAT)
-          throw new IllegalArgumentException("Material formulas must return a scalar");
         function = "float customField(vec2 p){return " + compiled.expression() + ";}\n";
         gradient = compiled.gradient();
       }

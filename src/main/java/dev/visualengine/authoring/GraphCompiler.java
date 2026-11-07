@@ -22,6 +22,7 @@ public final class GraphCompiler {
       List<String> order,
       String structuralKey) {}
 
+  private Map<String, List<String>> nodePaths = Map.of();
   private final Map<String, EffectGraph.Node> nodes = new LinkedHashMap<>();
   private final Map<String, Value> values = new LinkedHashMap<>();
   private final Map<String, String> shared = new HashMap<>();
@@ -38,7 +39,8 @@ public final class GraphCompiler {
 
   public static Compiled compile(EffectGraph graph, List<EffectControl> controls) {
     EffectControl.validateSchema(controls);
-    graph = GraphTemplates.expand(graph);
+    var expanded = GraphTemplates.expandWithOrigins(graph);
+    graph = expanded.graph();
     if (graph == null
         || graph.nodes == null
         || graph.nodes.isEmpty()
@@ -47,6 +49,7 @@ public final class GraphCompiler {
       throw new IllegalArgumentException("Expanded graph requires 1..256 nodes and an output");
     GraphCompiler c = new GraphCompiler();
     c.controls = List.copyOf(controls);
+    c.nodePaths = expanded.nodePaths();
     for (var n : graph.nodes) {
       if (n == null
           || n.kind() == null
@@ -59,7 +62,11 @@ public final class GraphCompiler {
           || n.comment().length() > 2048
           || n.group().length() > 128
           || c.nodes.putIfAbsent(n.id(), n) != null)
-        throw new IllegalArgumentException("Invalid or duplicate graph node ID");
+        throw AuthoringDiagnostic.inNodes(
+            n == null
+                ? List.of()
+                : c.nodePaths.getOrDefault(n.id(), List.of(String.valueOf(n.id()))),
+            new IllegalArgumentException("Invalid or duplicate graph node ID"));
     }
     // Validate every node, including disconnected authoring fragments, then prune execution to the
     // output.
@@ -72,8 +79,10 @@ public final class GraphCompiler {
     c.expandedCost = 0;
     Value output = c.visit(graph.output);
     if (output.port() != Port.SCALAR)
-      throw new IllegalArgumentException(
-          "Graph output must be scalar; use MASK or HASH_ID to convert semantic types");
+      throw AuthoringDiagnostic.inNodes(
+          c.nodePaths.get(graph.output),
+          new IllegalArgumentException(
+              "Graph output must be scalar; use MASK or HASH_ID to convert semantic types"));
     String function =
         "float customField(vec2 p) {\n"
             + String.join("\n", c.lines)
@@ -89,6 +98,14 @@ public final class GraphCompiler {
   }
 
   private Value visit(String id) {
+    try {
+      return visitNode(id);
+    } catch (IllegalArgumentException e) {
+      throw AuthoringDiagnostic.inNodes(nodePaths.getOrDefault(id, List.of(id)), e);
+    }
+  }
+
+  private Value visitNode(String id) {
     Value old = values.get(id);
     if (old != null) return old;
     EffectGraph.Node n = nodes.get(id);
@@ -171,9 +188,7 @@ public final class GraphCompiler {
       }
       case FORMULA -> {
         arity(n, in, 0);
-        var f = EffectControl.compile(n.expression(), controls);
-        if (f.root().type() != Formula.Type.FLOAT)
-          throw new IllegalArgumentException(n.id() + ": formula field must be scalar");
+        var f = EffectControl.compileField(n.expression(), controls);
         expandedCost += f.root().cost();
         code = f.expression();
         port = Port.SCALAR;

@@ -58,8 +58,7 @@ public final class EffectPackage {
     parameters.forEach(checked::set);
     if ("graph".equals(authoring)) GraphCompiler.compile(graph, controls);
     else if ("expression".equals(authoring)) {
-      if (EffectControl.compile(expression, controls).root().type() != Formula.Type.FLOAT)
-        throw new IllegalArgumentException("Field expression must be scalar");
+      EffectControl.compileField(expression, controls);
     } else throw new IllegalArgumentException("Unsupported authoring mode");
   }
 
@@ -104,9 +103,7 @@ public final class EffectPackage {
       if (resources.contains("previousVisualColor")) s.feedbackEnabled = true;
       if (resources.contains("pigment")) s.pigmentEnabled = true;
     } else {
-      var compiled = EffectControl.compile(s.expression, s.effectControls);
-      if (compiled.root().type() != Formula.Type.FLOAT)
-        throw new IllegalArgumentException("Field expression must be scalar");
+      var compiled = EffectControl.compileField(s.expression, s.effectControls);
       if (s.loopSeconds > 0 && compiled.dependencies().contains("t"))
         throw new IllegalArgumentException(
             "Analytic loops require phase instead of unbounded formula time");

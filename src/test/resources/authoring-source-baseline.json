@@ -1,0 +1,42 @@
+{
+  "engineVersion": "0.19.0",
+  "formulas": [
+    {
+      "source": "sin(p.x * frequency) + cos(p.y)",
+      "sha256": "99166ed5f471f827c7d1123aad803f0fbaee3ea72cb22da06e1dc0751aca3bb1"
+    },
+    {
+      "source": "2 + 3 * 4",
+      "sha256": "518cab805dfeca7f4121643106c728738be491243cc88e87e4daa7f251eb1aff"
+    },
+    {
+      "source": "noise3d(vec3(p, t))",
+      "sha256": "465e86a90cc76797946ae9b103bc629316642b895f4709e45342241677fad8f6"
+    },
+    {
+      "source": "safeDiv(vec2(1), 2).x",
+      "sha256": "92a8ad794271b94e13075ba6bc30e3d28a6a85b6a65b76920e40b824fe6164cb"
+    },
+    {
+      "source": "mix(vec3(1),vec3(2),.5).x",
+      "sha256": "1fac80e694040cbe5fd72c302176d8fa986b1464164597d36cf40f6046f9c6b6"
+    },
+    {
+      "source": "sin(length(p) * frequency - phase)",
+      "sha256": "095e4eb631d01d154618be016fc20c8870b0a812aeb7444f656769c56330f85a"
+    },
+    {
+      "source": "fbm(vec3(p * frequency + vec2(noise3d(vec3(p, phase))), sin(phase)))",
+      "sha256": "6df23da285e4fb272a26362c42c8e14cb17a2875df68eb91b8440940568135c0"
+    },
+    {
+      "source": "gabor(p + vec2(cos(phase),sin(phase))*drift, 0.65, frequency, 1.0)",
+      "sha256": "6e28ac1568348243bc0de251a20c0e2d25ffe5714cfd711b001048dc1138341a"
+    },
+    {
+      "source": "-(p.x + 2) / (cos(phase) + 3)",
+      "sha256": "769d1f46c08fe168cca45db050d0baaf04db28ad465046ebf367966affeb729d"
+    }
+  ],
+  "groupFunctionSha256": "28ac01b3a1dc9ec23a52060baaac848cb3d470a60752b2aed0daa32cda19f56d"
+}

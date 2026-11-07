@@ -23,12 +23,19 @@ public final class GraphTemplates {
     }
   }
 
+  public record Expanded(EffectGraph graph, Map<String, List<String>> nodePaths) {}
+
+  private final Map<String, List<String>> nodePaths = new LinkedHashMap<>();
   private final Map<String, Group> definitions = new LinkedHashMap<>();
   private final List<EffectGraph.Node> expanded = new ArrayList<>();
 
   private GraphTemplates() {}
 
   public static EffectGraph expand(EffectGraph graph) {
+    return expandWithOrigins(graph).graph();
+  }
+
+  public static Expanded expandWithOrigins(EffectGraph graph) {
     if (graph == null
         || graph.nodes == null
         || graph.groups == null
@@ -57,22 +64,24 @@ public final class GraphTemplates {
             || input.name() == null
             || !input.name().matches("[A-Za-z][A-Za-z0-9_]{0,47}")
             || !names.add(input.name())) throw new IllegalArgumentException("Invalid group input");
-      validateNodes(group.nodes(), group.output());
+      validateNodes(group.nodes(), group.output(), List.of(group.key()));
       for (var node : group.nodes())
         if (node.kind() == EffectGraph.Kind.INPUT
             && (!names.contains(node.expression()) || !node.inputs().isEmpty()))
-          throw new IllegalArgumentException("Undeclared group input: " + node.expression());
+          throw problem(
+              List.of(group.key(), node.id()), "Undeclared group input: " + node.expression());
     }
-    validateNodes(graph.nodes, graph.output);
+    validateNodes(graph.nodes, graph.output, List.of());
     for (String key : t.definitions.keySet()) t.checkReferences(key, new LinkedHashSet<>(), 0);
-    t.expandNodes(graph.nodes, "", Map.of(), 0);
+    t.expandNodes(graph.nodes, "", Map.of(), 0, List.of());
     EffectGraph result = graph.copy();
     result.nodes = new ArrayList<>(t.expanded);
     result.groups = new ArrayList<>();
-    return result;
+    return new Expanded(result, Map.copyOf(t.nodePaths));
   }
 
-  private static void validateNodes(List<EffectGraph.Node> nodes, String output) {
+  private static void validateNodes(
+      List<EffectGraph.Node> nodes, String output, List<String> path) {
     Set<String> ids = new HashSet<>();
     for (var node : nodes)
       if (node == null
@@ -80,13 +89,15 @@ public final class GraphTemplates {
           || !node.id().matches("[A-Za-z][A-Za-z0-9_]{0,47}")
           || node.kind() == null
           || !ids.add(node.id()))
-        throw new IllegalArgumentException("Invalid or duplicate graph node ID");
+        throw problem(
+            append(path, node == null ? "<missing>" : String.valueOf(node.id())),
+            "Invalid or duplicate graph node ID");
     if (!ids.contains(output))
-      throw new IllegalArgumentException("Missing graph output: " + output);
+      throw problem(append(path, String.valueOf(output)), "Missing graph output: " + output);
     for (var node : nodes)
       for (String input : node.inputs())
         if (!ids.contains(input))
-          throw new IllegalArgumentException("Missing graph input: " + input);
+          throw problem(append(path, node.id()), "Missing graph input: " + input);
   }
 
   private void checkReferences(String key, Set<String> active, int depth) {
@@ -101,95 +112,120 @@ public final class GraphTemplates {
     active.remove(key);
   }
 
-  private void add(EffectGraph.Node node) {
+  private static List<String> append(List<String> path, String id) {
+    List<String> result = new ArrayList<>(path);
+    result.add(id);
+    return List.copyOf(result);
+  }
+
+  private static AuthoringDiagnostic problem(List<String> path, String text) {
+    return AuthoringDiagnostic.inNodes(path, new IllegalArgumentException(text));
+  }
+
+  private void add(EffectGraph.Node node, List<String> path) {
     if (expanded.size() >= 256)
       throw new IllegalArgumentException("Expanded graph exceeds 256 nodes");
     expanded.add(node);
+    nodePaths.put(node.id(), path);
   }
 
   private void expandNodes(
-      List<EffectGraph.Node> nodes, String prefix, Map<String, String> bindings, int depth) {
+      List<EffectGraph.Node> nodes,
+      String prefix,
+      Map<String, String> bindings,
+      int depth,
+      List<String> parentPath) {
     if (depth > 4) throw new IllegalArgumentException("Group nesting exceeds four instances");
     for (var n : nodes) {
-      String id = prefix + n.id();
-      List<String> inputs = n.inputs().stream().map(x -> prefix + x).toList();
-      if (n.kind() == EffectGraph.Kind.INPUT) {
-        String bound = bindings.get(n.expression());
-        if (bound == null)
-          throw new IllegalArgumentException("INPUT is only valid inside a group definition");
-        add(
-            new EffectGraph.Node(
-                id,
-                EffectGraph.Kind.ALIAS,
-                List.of(bound),
-                "0",
-                n.x(),
-                n.y(),
-                false,
-                n.group(),
-                n.comment(),
-                "",
-                n.seedKey()));
-        continue;
-      }
-      if (n.kind() == EffectGraph.Kind.GROUP && !n.bypass()) {
-        Group group = definitions.get(n.template());
-        if (group == null)
-          throw new IllegalArgumentException("Missing group revision: " + n.template());
-        if (group.inputs().size() != inputs.size())
-          throw new IllegalArgumentException(
-              "Group " + n.template() + " requires " + group.inputs().size() + " inputs");
-        String inner =
-            "g"
-                + Integer.toUnsignedString(id.hashCode(), 16)
-                + "_"
-                + Long.toUnsignedString(dev.visualengine.time.Seeds.derive(0, id, "namespace"), 16)
-                + "_";
-        Map<String, String> args = new LinkedHashMap<>();
-        for (int i = 0; i < inputs.size(); i++) {
-          var input = group.inputs().get(i);
-          String checked = inner + "arg_" + i;
+      List<String> path = append(parentPath, n.id());
+      try {
+        String id = prefix + n.id();
+        List<String> inputs = n.inputs().stream().map(x -> prefix + x).toList();
+        if (n.kind() == EffectGraph.Kind.INPUT) {
+          String bound = bindings.get(n.expression());
+          if (bound == null)
+            throw new IllegalArgumentException("INPUT is only valid inside a group definition");
           add(
               new EffectGraph.Node(
-                  checked,
-                  EffectGraph.Kind.CHECK_SOURCE,
-                  List.of(inputs.get(i)),
-                  input.type().name(),
-                  0,
-                  0,
+                  id,
+                  EffectGraph.Kind.ALIAS,
+                  List.of(bound),
+                  "0",
+                  n.x(),
+                  n.y(),
                   false,
+                  n.group(),
+                  n.comment(),
                   "",
-                  ""));
-          args.put(input.name(), checked);
+                  n.seedKey()),
+              path);
+          continue;
         }
-        expandNodes(group.nodes(), inner + "node_", args, depth + 1);
-        add(
-            new EffectGraph.Node(
-                id,
-                EffectGraph.Kind.CHECK_SOURCE,
-                List.of(inner + "node_" + group.output()),
-                group.outputType().name(),
-                n.x(),
-                n.y(),
-                false,
-                n.group(),
-                n.comment(),
-                "",
-                n.seedKey()));
-      } else
-        add(
-            new EffectGraph.Node(
-                id,
-                n.kind(),
-                inputs,
-                n.expression(),
-                n.x(),
-                n.y(),
-                n.bypass(),
-                n.group(),
-                n.comment(),
-                n.template(),
-                n.seedKey()));
+        if (n.kind() == EffectGraph.Kind.GROUP && !n.bypass()) {
+          Group group = definitions.get(n.template());
+          if (group == null)
+            throw new IllegalArgumentException("Missing group revision: " + n.template());
+          if (group.inputs().size() != inputs.size())
+            throw new IllegalArgumentException(
+                "Group " + n.template() + " requires " + group.inputs().size() + " inputs");
+          String inner =
+              "g"
+                  + Integer.toUnsignedString(id.hashCode(), 16)
+                  + "_"
+                  + Long.toUnsignedString(
+                      dev.visualengine.time.Seeds.derive(0, id, "namespace"), 16)
+                  + "_";
+          Map<String, String> args = new LinkedHashMap<>();
+          for (int i = 0; i < inputs.size(); i++) {
+            var input = group.inputs().get(i);
+            String checked = inner + "arg_" + i;
+            add(
+                new EffectGraph.Node(
+                    checked,
+                    EffectGraph.Kind.CHECK_SOURCE,
+                    List.of(inputs.get(i)),
+                    input.type().name(),
+                    0,
+                    0,
+                    false,
+                    "",
+                    ""),
+                path);
+            args.put(input.name(), checked);
+          }
+          expandNodes(group.nodes(), inner + "node_", args, depth + 1, path);
+          add(
+              new EffectGraph.Node(
+                  id,
+                  EffectGraph.Kind.CHECK_SOURCE,
+                  List.of(inner + "node_" + group.output()),
+                  group.outputType().name(),
+                  n.x(),
+                  n.y(),
+                  false,
+                  n.group(),
+                  n.comment(),
+                  "",
+                  n.seedKey()),
+              path);
+        } else
+          add(
+              new EffectGraph.Node(
+                  id,
+                  n.kind(),
+                  inputs,
+                  n.expression(),
+                  n.x(),
+                  n.y(),
+                  n.bypass(),
+                  n.group(),
+                  n.comment(),
+                  n.template(),
+                  n.seedKey()),
+              path);
+      } catch (IllegalArgumentException e) {
+        throw AuthoringDiagnostic.inNodes(path, e);
+      }
     }
   }
 

@@ -139,10 +139,11 @@ public final class Formula {
           + String.join(
               ",",
               args.stream()
-                  .map(n ->
-                      broadcast && n.type() == Type.FLOAT
-                          ? type.glsl + "(" + n.code() + ")"
-                          : n.code())
+                  .map(
+                      n ->
+                          broadcast && n.type() == Type.FLOAT
+                              ? type.glsl + "(" + n.code() + ")"
+                              : n.code())
                   .toList())
           + ")";
     }
@@ -202,6 +203,7 @@ public final class Formula {
           Type.FLOAT);
   private final String input;
   private final Map<String, Type> symbols;
+  private final Map<Node, int[]> spans = new IdentityHashMap<>();
   private int offset, nodes, recursion;
 
   private Formula(String input, Map<String, Type> symbols) {
@@ -221,7 +223,7 @@ public final class Formula {
     p.space();
     if (p.offset != source.length()) throw p.error("Unexpected token");
     if (root.cost() > 8192 || root.depth() > 32 || root.code().length() > 65536)
-      throw p.error("Expanded formula cost or depth exceeds limit");
+      throw p.error(root, "Expanded formula cost or depth exceeds limit");
     Set<String> dependencies = new TreeSet<>();
     collect(root, dependencies);
     String derivative = gradient(root);
@@ -229,18 +231,36 @@ public final class Formula {
         root, root.code(), derivative, derivative != null, Set.copyOf(dependencies));
   }
 
-  private Node add(Node n) {
-    if (++nodes > 256) throw error("Formula exceeds 256 syntax nodes");
+  private Node mark(Node n, int start) {
+    spans.put(n, new int[] {start, offset});
     return n;
+  }
+
+  private Node add(Node n, int start) {
+    return add(n, start, offset);
+  }
+
+  private Node add(Node n, int start, int end) {
+    if (++nodes > 256) throw error(start, end, "Formula exceeds 256 syntax nodes");
+    spans.put(n, new int[] {start, end});
+    return n;
+  }
+
+  private int start(Node n) {
+    return spans.get(n)[0];
   }
 
   private Node expression() {
     if (++recursion > 32) throw error("Formula nesting exceeds 32");
     Node n = product();
     while (true) {
-      if (take('+')) n = binary('+', n, product());
-      else if (take('-')) n = binary('-', n, product());
-      else break;
+      if (take('+')) {
+        int at = offset - 1;
+        n = binary('+', n, product(), at);
+      } else if (take('-')) {
+        int at = offset - 1;
+        n = binary('-', n, product(), at);
+      } else break;
     }
     recursion--;
     return n;
@@ -249,16 +269,27 @@ public final class Formula {
   private Node product() {
     Node n = unary();
     while (true) {
-      if (take('*')) n = binary('*', n, unary());
-      else if (take('/')) n = binary('/', n, unary());
-      else return n;
+      if (take('*')) {
+        int at = offset - 1;
+        n = binary('*', n, unary(), at);
+      } else if (take('/')) {
+        int at = offset - 1;
+        n = binary('/', n, unary(), at);
+      } else return n;
     }
   }
 
   private Node unary() {
-    if (take('+')) return add(new Unary('+', unaryBounded()));
-    if (take('-')) return add(new Unary('-', unaryBounded()));
+    space();
+    int start = offset;
+    if (take('+')) return unaryNode('+', start);
+    if (take('-')) return unaryNode('-', start);
     return postfix();
+  }
+
+  private Node unaryNode(char op, int start) {
+    Node child = unaryBounded();
+    return add(new Unary(op, child), start, spans.get(child)[1]);
   }
 
   private Node unaryBounded() {
@@ -268,8 +299,13 @@ public final class Formula {
     return n;
   }
 
-  private Node binary(char op, Node a, Node b) {
-    Type type = compatible(a.type(), b.type());
+  private Node binary(char op, Node a, Node b, int at) {
+    Type type;
+    try {
+      type = compatible(a.type(), b.type());
+    } catch (IllegalArgumentException e) {
+      throw error(at, at + 1, e.getMessage());
+    }
     if (a instanceof NumberNode x && b instanceof NumberNode y) {
       double v =
           switch (op) {
@@ -278,41 +314,51 @@ public final class Formula {
             case '*' -> x.value() * y.value();
             default -> x.value() / y.value();
           };
-      if (Double.isFinite(v)) return add(new NumberNode(v));
+      if (Double.isFinite(v)) return add(new NumberNode(v), start(a), spans.get(b)[1]);
     }
-    return add(new Binary(op, a, b, type));
+    return add(new Binary(op, a, b, type), start(a), spans.get(b)[1]);
   }
 
-  private Type compatible(Type a, Type b) {
+  private static Type compatible(Type a, Type b) {
     if (a == b) return a;
     if (a == Type.FLOAT) return b;
     if (b == Type.FLOAT) return a;
-    throw error("Scalar/vector size mismatch: " + a + " and " + b);
+    throw new IllegalArgumentException("Scalar/vector size mismatch: " + a + " and " + b);
+  }
+
+  private Type compatible(Node a, Node b) {
+    try {
+      return compatible(a.type(), b.type());
+    } catch (IllegalArgumentException e) {
+      throw error(b, e.getMessage());
+    }
   }
 
   private Node postfix() {
     Node n = primary();
     while (take('.')) {
+      space();
+      int at = offset;
       String sw = identifier();
-      if (sw.length() < 1 || sw.length() > 4) throw error("Invalid swizzle");
+      if (sw.length() < 1 || sw.length() > 4) throw error(at, offset, "Invalid swizzle");
       for (char c : sw.toCharArray())
         if ("xyzw".indexOf(c) < 0 || "xyzw".indexOf(c) >= n.type().width)
-          throw error("Swizzle exceeds vector width");
-      n = add(new Swizzle(n, sw, Type.values()[sw.length() - 1]));
+          throw error(at, offset, "Swizzle exceeds vector width");
+      n = add(new Swizzle(n, sw, Type.values()[sw.length() - 1]), start(n));
     }
     return n;
   }
 
   private Node primary() {
     space();
+    int start = offset;
     if (take('(')) {
       Node n = expression();
       expect(')');
-      return n;
+      return mark(n, start);
     }
     if (offset < input.length()
         && (Character.isDigit(input.charAt(offset)) || input.charAt(offset) == '.')) {
-      int start = offset;
       boolean exponent = false;
       while (offset < input.length()) {
         char c = input.charAt(offset);
@@ -332,87 +378,94 @@ public final class Formula {
       try {
         double v = Double.parseDouble(input.substring(start, offset));
         if (!Double.isFinite(v) || Math.abs(v) > 1e12)
-          throw error("Numeric literal is outside range");
-        return add(new NumberNode(v));
+          throw error(start, offset, "Numeric literal is outside range");
+        return add(new NumberNode(v), start);
       } catch (NumberFormatException e) {
-        throw error("Invalid number");
+        throw error(start, offset, "Invalid number");
       }
     }
     String name = identifier();
+    int nameEnd = offset;
     if (take('(')) {
       List<Node> args = new ArrayList<>();
       if (!take(')')) {
         do {
           args.add(expression());
-          if (args.size() > 4) throw error("Too many function arguments");
+          if (args.size() > 4) throw error(args.getLast(), "Too many function arguments");
         } while (take(','));
         expect(')');
       }
-      return call(name, args);
+      return call(name, args, start, nameEnd);
     }
-    if (name.equals("pi")) return add(new NumberNode(Math.PI));
+    if (name.equals("pi")) return add(new NumberNode(Math.PI), start, nameEnd);
     Type type = symbols.get(name);
-    if (type == null) throw error("Unknown symbol: " + name);
-    return add(new Symbol(name, type));
+    if (type == null) throw error(start, nameEnd, "Unknown symbol: " + name);
+    return add(new Symbol(name, type), start, nameEnd);
   }
 
-  private Node call(String name, List<Node> args) {
+  private Node call(String name, List<Node> args, int start, int nameEnd) {
     Type type;
     switch (name) {
       case "vec2", "vec3", "vec4" -> {
         int width = name.charAt(3) - '0', total = args.stream().mapToInt(n -> n.type().width).sum();
         if (!(total == width || args.size() == 1 && args.getFirst().type() == Type.FLOAT))
-          throw error("Invalid vector constructor");
+          throw error(start, offset, "Invalid vector constructor");
         type = Type.values()[width - 1];
       }
       case "sin", "cos", "abs", "floor", "fract", "exp", "sqrtSafe", "normalizeSafe" -> {
-        arity(args, 1);
+        arity(args, 1, start);
         type = args.getFirst().type();
       }
       case "length" -> {
-        arity(args, 1);
+        arity(args, 1, start);
         type = Type.FLOAT;
       }
       case "noise3d", "fbm" -> {
-        arity(args, 1);
+        arity(args, 1, start);
         require(args.getFirst(), Type.VEC3);
         type = Type.FLOAT;
       }
       case "cellular" -> {
-        arity(args, 1);
+        arity(args, 1, start);
         require(args.getFirst(), Type.VEC2);
         type = Type.VEC3;
       }
       case "gabor" -> {
-        arity(args, 4);
+        arity(args, 4, start);
         require(args.getFirst(), Type.VEC2);
         for (int i = 1; i < 4; i++) require(args.get(i), Type.FLOAT);
         type = Type.FLOAT;
       }
       case "dot" -> {
-        arity(args, 2);
-        if (args.get(0).type() != args.get(1).type()) throw error("dot requires equal widths");
+        arity(args, 2, start);
+        if (args.get(0).type() != args.get(1).type())
+          throw error(args.get(1), "dot requires equal widths");
         type = Type.FLOAT;
       }
       case "min", "max", "safeDiv", "powSafe" -> {
-        arity(args, 2);
-        type = compatible(args.get(0).type(), args.get(1).type());
+        arity(args, 2, start);
+        type = compatible(args.get(0), args.get(1));
       }
       case "mix", "clamp", "smoothstep" -> {
-        arity(args, 3);
-        type = compatible(compatible(args.get(0).type(), args.get(1).type()), args.get(2).type());
+        arity(args, 3, start);
+        type = compatible(args.get(0), args.get(1));
+        try {
+          type = compatible(type, args.get(2).type());
+        } catch (IllegalArgumentException e) {
+          throw error(args.get(2), e.getMessage());
+        }
       }
-      default -> throw error("Unknown function: " + name);
+      default -> throw error(start, nameEnd, "Unknown function: " + name);
     }
-    return add(new Call(name, List.copyOf(args), type));
+    return add(new Call(name, List.copyOf(args), type), start);
   }
 
-  private void arity(List<Node> args, int count) {
-    if (args.size() != count) throw error("Expected " + count + " arguments");
+  private void arity(List<Node> args, int count, int start) {
+    if (args.size() != count) throw error(start, offset, "Expected " + count + " arguments");
   }
 
   private void require(Node n, Type type) {
-    if (n.type() != type) throw error("Expected " + type + ", found " + n.type());
+    if (n.type() != type) throw error(n, "Expected " + type + ", found " + n.type());
   }
 
   private void space() {
@@ -438,12 +491,22 @@ public final class Formula {
     while (offset < input.length()
         && (Character.isLetterOrDigit(input.charAt(offset)) || input.charAt(offset) == '_'))
       offset++;
-    if (start == offset || !Character.isLetter(input.charAt(start))) throw error("Expected a name");
+    if (start == offset || !Character.isLetter(input.charAt(start)))
+      throw error(start, Math.max(offset, Math.min(input.length(), start + 1)), "Expected a name");
     return input.substring(start, offset);
   }
 
-  private IllegalArgumentException error(String text) {
-    return new IllegalArgumentException(text + " at character " + (offset + 1));
+  private AuthoringDiagnostic error(Node n, String text) {
+    int[] span = spans.get(n);
+    return error(span[0], span[1], text);
+  }
+
+  private AuthoringDiagnostic error(int start, int end, String text) {
+    return AuthoringDiagnostic.at(input, start, end, text);
+  }
+
+  private AuthoringDiagnostic error(String text) {
+    return error(offset, Math.min(input.length(), offset + 1), text);
   }
 
   private static void collect(Node n, Set<String> out) {
