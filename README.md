@@ -56,6 +56,8 @@ Version 0.14 adds bounded reuse of linked material shaders, transactional cache 
 
 Version 0.15 checks peak GPU storage while old and replacement resources coexist, preserves allocation bindings during candidate construction, and reports allocation plans in diagnostics and benchmarks. Temporary stills and maps share the same checked accounting. See [allocation budgets and failure behavior](docs/ALLOCATION_BUDGETS.md).
 
+Version 0.16 stages artwork/map PNGs and metadata together, restores previous files after publication failures, and retains recovery copies if restoration fails. Captures validate metadata before changing output files. See [paired file publication and recovery limits](docs/OUTPUT_PUBLICATION.md).
+
 Discovery bookmarks save artwork and its complete restarting configuration under the user-data directory. A/B comparison shows a frozen or saved finished frame on the left and the live scene on the right; this does not run two independent simulations. GPU storage is estimated before quality changes and capped at 512 MiB.
 
 ## Verification

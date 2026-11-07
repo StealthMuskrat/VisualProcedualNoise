@@ -2,6 +2,8 @@
 
 PNG captures are opaque SDR sRGB, with top-left image origin. Their JSON sidecars preserve the base controls, modulation, root seed, reference tick, phase clocks, quality, algorithm revision and device. Loading a configuration restarts state; a still and its metadata are not a GPU checkpoint.
 
+Artwork and texture-map saves stage the PNG and JSON before publication and restore previous files on a handled publication failure. Recovery copies are retained if restoration also fails. See [paired output publication](OUTPUT_PUBLICATION.md) for disk-space, concurrent-reader and crash limits.
+
 Use `--capture artwork.png --capture-size 2560x1600` for an independent full-resolution still at the current tick. The Files tab offers the same chosen-size capture. Live window dimensions, simulation resources and sequence timing stay intact. Sidecars identify the actual render size and whether the A/B reference is included. See [quality and still output](QUALITY_AND_STILLS.md) for bounds and behavior.
 
 [Discovery bookmarks](DISCOVERIES.md) add a thumbnail gallery, annotations and branching around captured artwork and restarting configurations. They do not replace state checkpoints.
