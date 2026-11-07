@@ -66,6 +66,8 @@ Version 0.19 tracks paused/zero-speed redraw demand, skipping rendering for inac
 
 Version 0.20 adds located authoring errors, formula text selection and original graph-node paths through reusable groups. The editor reveals affected nodes, wraps long diagnostics and keeps graph undo scoped to the current scene. See [finding and correcting authoring errors](docs/AUTHORING.md#finding-and-correcting-errors).
 
+Version 0.21 bounds generated expression/gradient text and final shader stages after custom-code insertion. Oversized candidates preserve the working scene; graph nodes skip unused gradient generation. See [formula limits](docs/AUTHORING.md#formula-language) and [final shader bounds](docs/SHADER_CACHE.md#source-bounds).
+
 Discovery bookmarks save artwork and its complete restarting configuration under the user-data directory. A/B comparison shows a frozen or saved finished frame on the left and the live scene on the right; this does not run two independent simulations. GPU storage is estimated before quality changes and capped at 512 MiB.
 
 ## Verification

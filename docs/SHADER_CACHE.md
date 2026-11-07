@@ -39,6 +39,10 @@ The isolated benchmark suite normally has no repeated material switching, so its
 
 Engine shader files use strict UTF-8 and reject NUL characters. Reads stop after 256 KiB plus one detection byte per file. Each root expansion permits at most 1 MiB of UTF-8 output, 128 file expansions including repeated includes, and sixteen active files in the include chain. Includes remain within the selected resource root, with cycle and parent-escape checks across slash styles. Existing `#line` diagnostics are retained.
 
+Version 0.21 also limits each final vertex, fragment and compute stage to 1 MiB after recipe substitution and custom-code insertion. Every marker occurrence contributes to the projected size; insertion checks run before allocating the combined text. Program construction validates final size, Unicode and NULs before hashing or making native program/shader calls. The fingerprint-only helper keeps its existing stage-framing behavior. Accepted source text and fingerprints do not change.
+
+An engine file expansion can fit and still leave too little space for a custom field. Such a candidate or F5 reload fails before a material-cache lookup or compile, preserving the previous generation and developed scene. Fix the source and reload again. Formulas have their own [combined expression/gradient budget](AUTHORING.md#formula-language), and graphs generate only requested values.
+
 These are engine-development resource limits. User formulas, graphs, controls and effect imports retain their own smaller authoring bounds. Source rejection preserves the previous compiled scene through the normal failed-edit path; startup rejection logs the error before publishing capture output.
 
 ## Verification
