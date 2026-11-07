@@ -29,10 +29,12 @@ with tempfile.TemporaryDirectory(prefix="output-pair-check-", dir=reports) as te
     root = Path(temporary) / "Paired output études with spaces"
     root.mkdir()
     environment = dict(os.environ, LOCALAPPDATA=str(root / "appdata"))
+    diagnostics = []
     common = [str(launcher), "--headless", "--size", "96x60", "--replay", str(fixture)]
     def execute(frames, extra, success=True):
         result = subprocess.run([*common, "--frames", str(frames), *extra], env=environment,
                                 capture_output=True, text=True, timeout=120)
+        diagnostics.append(f"frames={frames}, arguments={extra}, exit={result.returncode}\n" + result.stderr[-6000:])
         if success != (result.returncode == 0):
             raise SystemExit(result.stdout + result.stderr)
         return result
@@ -71,8 +73,10 @@ with tempfile.TemporaryDirectory(prefix="output-pair-check-", dir=reports) as te
         execute(4, extra, False)
         if (occupied / "marker").read_text() != "keep" or metadata.read_text() != "previous metadata":
             raise SystemExit(f"Blocked {kind} image changed the occupied directory or metadata")
-    if list(root.glob(".visual-output-*")):
-        raise SystemExit("Completed or rejected paired save left staging files")
+    leftovers = {path.name: sorted(child.name for child in path.iterdir()) for path in root.glob(".visual-output-*")}
+    if leftovers:
+        raise SystemExit("Completed or rejected paired save left staging files: " + json.dumps(leftovers)
+                         + "\n" + "\n".join(diagnostics))
     summary = {"referenceTick": 16, "artworkSha256": hashlib.sha256(expected[0].read_bytes()).hexdigest(),
                "mapSha256": hashlib.sha256(expected[1].read_bytes()).hexdigest(),
                "outcome": "independent overwrite equivalence, exact GPU/clocks/replay, artwork/map destination preservation and staging cleanup"}

@@ -10,9 +10,11 @@ import dev.visualengine.gpu.*;
 import dev.visualengine.io.FileJobs;
 import dev.visualengine.model.PresetMorph;
 import dev.visualengine.model.Settings;
+import dev.visualengine.platform.DesktopInput;
 import dev.visualengine.platform.DesktopLifecycle;
 import dev.visualengine.platform.Presentation;
 import dev.visualengine.platform.PresentationIO;
+import dev.visualengine.platform.RedrawDemand;
 import dev.visualengine.platform.Window;
 import dev.visualengine.presets.CheckpointIO;
 import dev.visualengine.presets.DiscoveryStore;
@@ -35,6 +37,8 @@ public final class Engine implements AutoCloseable {
   private final ControlSignals signals = new ControlSignals();
   private final FramePacer pacer = new FramePacer();
   private final DesktopLifecycle desktop = new DesktopLifecycle();
+  private final RedrawDemand redraw = new RedrawDemand();
+  private boolean pointerChangedSinceFrame;
   private Presentation presentation = Presentation.DEFAULT;
   private boolean presentationBusy;
   private ReplayLog playbackLog, recordingLog;
@@ -211,6 +215,8 @@ public final class Engine implements AutoCloseable {
       drain();
       if (window.closing()) break;
       if (window.consumeTimingReset()) desktop.interrupt();
+      if (window.consumeRedrawRequest()) redraw.invalidate();
+      pointerChangedSinceFrame |= window.consumePointerChange();
       var activity =
           desktop.update(
               options.headless,
@@ -225,6 +231,20 @@ public final class Engine implements AutoCloseable {
       }
       if (activity.suspended()) {
         last = glfwGetTime();
+        glfwWaitEventsTimeout(.1);
+        continue;
+      }
+      boolean frozen = settings.paused || settings.speed == 0;
+      var pointer = window.pointer();
+      if (pointerChangedSinceFrame && playbackLog == null && !resumeFrame)
+        redraw.pointerChanged(pointer);
+      if (!redraw.needsFrame(
+          options.headless, frozen, frameWorkPending(), window.width, window.height)) {
+        last = glfwGetTime();
+        discardElapsed = true;
+        clock.discardBacklog();
+        if (!commands.isEmpty()) continue;
+        redraw.idleWait();
         glfwWaitEventsTimeout(.1);
         continue;
       }
@@ -257,7 +277,6 @@ public final class Engine implements AutoCloseable {
         steps = 1;
         step = false;
       }
-      var pointer = window.pointer();
       double x = pointer.x(), y = pointer.y();
       boolean brush = pointer.brush();
       for (int j = 0; j < steps; j++) advance(x, y, brush);
@@ -267,6 +286,10 @@ public final class Engine implements AutoCloseable {
         brush = replayBrush;
       } else if (steps > 0) {
         brush = lastBrush;
+      } else if (frozen && !pointerChangedSinceFrame) {
+        x = renderedPointer.x();
+        y = renderedPointer.y();
+        brush = renderedPointer.brush();
       }
       if (resumeFrame && steps == 0) {
         x = renderedPointer.x();
@@ -275,6 +298,7 @@ public final class Engine implements AutoCloseable {
       }
       resumeFrame = false;
       renderedPointer = new CheckpointIO.Pointer(x, y, brush);
+      long drawRevision = redraw.beginFrame();
       renderer.render(
           signals.frame(settings), clock.seconds(), window.width, window.height, x, y, brush);
       if (freeze) {
@@ -341,13 +365,15 @@ public final class Engine implements AutoCloseable {
       if (options.bookmark != null && rendered + 1 == options.frames)
         saveDiscovery(options.bookmark, options.headless);
       glfwSwapBuffers(window.handle);
+      redraw.presented(
+          drawRevision, window.width, window.height, new DesktopInput.Pointer(x, y, brush));
+      pointerChangedSinceFrame = false;
       if (benchmark != null) {
         var measurements = renderer.collectMeasurements();
         benchmark.recordFrame(rendered, (System.nanoTime() - frameStart) / 1e6);
         benchmark.accept(measurements.render(), measurements.tick());
       }
       rendered++;
-      if ((settings.paused || settings.speed == 0) && !options.headless) glfwWaitEvents();
     }
     if (options.saveCheckpoint != null) saveCheckpoint(options.saveCheckpoint, options.headless);
     if (options.export != null) {
@@ -377,6 +403,7 @@ public final class Engine implements AutoCloseable {
       report.add("shaderCache", PresetIO.JSON.toJsonTree(renderer.shaderCacheStats()));
       report.add("allocation", PresetIO.JSON.toJsonTree(renderer.allocationStats()));
       report.add("fileQueue", PresetIO.JSON.toJsonTree(files.snapshot()));
+      report.add("redraw", PresetIO.JSON.toJsonTree(redraw.snapshot()));
       enqueueIOBlocking(
           () -> PresetIO.atomicWrite(options.benchmark, PresetIO.JSON.toJson(report)));
     }
@@ -424,6 +451,19 @@ public final class Engine implements AutoCloseable {
     lastBrush = brush;
   }
 
+  private boolean frameWorkPending() {
+    return options.frames > 0
+        || reset
+        || step
+        || freeze
+        || capture != null
+        || stillCapture != null
+        || mapExport != null
+        || checkpointSave != null
+        || inspectionRequest != null
+        || bookmark != null;
+  }
+
   private static long stamp(Path root) throws java.io.IOException {
     try (var paths = Files.walk(root)) {
       return paths
@@ -462,6 +502,7 @@ public final class Engine implements AutoCloseable {
   }
 
   private void apply(Command c) {
+    if (c.needsFrame()) redraw.invalidate();
     Settings before = settings.copy();
     String sourceBefore = sourceDiscovery;
     boolean resetBefore = reset;
@@ -483,6 +524,7 @@ public final class Engine implements AutoCloseable {
           report.add("shaderCache", PresetIO.JSON.toJsonTree(renderer.shaderCacheStats()));
           report.add("allocation", PresetIO.JSON.toJsonTree(renderer.allocationStats()));
           report.add("fileQueue", PresetIO.JSON.toJsonTree(files.snapshot()));
+          report.add("redraw", PresetIO.JSON.toJsonTree(redraw.snapshot()));
           enqueueIO(
               () -> {
                 PresetIO.atomicWrite(
@@ -947,7 +989,7 @@ public final class Engine implements AutoCloseable {
                 + (reset ? "; simulation restarted" : "; state preserved")
                 + (stoppedReplay ? "; replay stopped" : ""));
       }
-      if (settings.paused && !Set.of("quality", "pause", "step").contains(c.type())
+      if ((settings.paused || settings.speed == 0) && c.editsHeldControls()
           || c.type().equals("effectControls")) signals.snap(settings, clock.seconds());
       if (recording
           && recordingLog != null

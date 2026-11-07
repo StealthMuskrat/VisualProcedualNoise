@@ -18,7 +18,7 @@ public final class Window implements AutoCloseable {
   private Presentation presentation;
   private dev.visualengine.gpu.DeviceCapabilities capabilities;
   private final DesktopInput input = new DesktopInput();
-  private boolean timingReset;
+  private boolean timingReset, pointerChanged, redrawRequested = true;
   private WindowedRestore windowedRestore;
 
   private record WindowedRestore(Bounds bounds, Insets frame, boolean maximized) {}
@@ -77,14 +77,26 @@ public final class Window implements AutoCloseable {
             (win, focused) -> {
               input.focus(focused);
               timingReset = true;
+              pointerChanged = redrawRequested = true;
             });
         glfwSetMouseButtonCallback(
             handle,
             (win, button, action, mods) -> {
-              if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) input.release();
+              if (button == GLFW_MOUSE_BUTTON_LEFT) {
+                if (action == GLFW_RELEASE) input.release();
+                pointerChanged = true;
+              }
             });
+        glfwSetCursorPosCallback(handle, (win, x, y) -> pointerChanged = true);
+        glfwSetWindowRefreshCallback(handle, win -> requestRedraw());
         glfwSetWindowIconifyCallback(handle, (win, iconified) -> interruptInput());
-        glfwSetFramebufferSizeCallback(handle, (win, width, height) -> timingReset = true);
+        glfwSetFramebufferSizeCallback(
+            handle,
+            (win, width, height) -> {
+              timingReset = true;
+              pointerChanged = true;
+              requestRedraw();
+            });
         glfwSetWindowContentScaleCallback(handle, (win, x, y) -> interruptInput());
       }
       resize();
@@ -106,6 +118,7 @@ public final class Window implements AutoCloseable {
       throw new IllegalStateException("Presentation changes require the owning current context");
     presentation = headless ? Presentation.OFFLINE : java.util.Objects.requireNonNull(requested);
     glfwSwapInterval(presentation.vsync() ? 1 : 0);
+    requestRedraw();
   }
 
   /** Application request; driver settings may override swap synchronization. */
@@ -125,8 +138,13 @@ public final class Window implements AutoCloseable {
       var w = stack.mallocInt(1);
       var h = stack.mallocInt(1);
       glfwGetFramebufferSize(handle, w, h);
-      width = w.get(0);
-      height = h.get(0);
+      int nextWidth = w.get(0), nextHeight = h.get(0);
+      if (width != nextWidth || height != nextHeight) {
+        pointerChanged = true;
+        requestRedraw();
+      }
+      width = nextWidth;
+      height = nextHeight;
     }
   }
 
@@ -151,6 +169,25 @@ public final class Window implements AutoCloseable {
   public void interruptInput() {
     input.cancel();
     timingReset = true;
+    pointerChanged = true;
+    requestRedraw();
+  }
+
+  /** Callbacks signal work; drawing remains in the owning context loop. */
+  public void requestRedraw() {
+    redrawRequested = true;
+  }
+
+  public boolean consumeRedrawRequest() {
+    boolean result = redrawRequested;
+    redrawRequested = false;
+    return result;
+  }
+
+  public boolean consumePointerChange() {
+    boolean result = pointerChanged;
+    pointerChanged = false;
+    return result;
   }
 
   public DesktopInput.Pointer pointer() {
