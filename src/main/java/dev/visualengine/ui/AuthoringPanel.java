@@ -211,8 +211,13 @@ public final class AuthoringPanel extends JPanel {
               if (node != null) canvas.reveal(node);
             });
     tabs.addTab("Connections", connections);
-    groups = new GroupCapturePanel(this::captureGroup, error -> showProblem(error, false, true));
-    groups.reset(graph);
+    groups =
+        new GroupCapturePanel(
+            this::captureGroup,
+            error -> showProblem(error, false, true),
+            this::select,
+            this::unpackGroup);
+    groups.reset(graph, graph.output);
     tabs.addTab("Groups", groups);
     add(tabs, BorderLayout.CENTER);
     JScrollPane messages = new JScrollPane(diagnostic);
@@ -327,6 +332,7 @@ public final class AuthoringPanel extends JPanel {
     selected = n == null ? null : name;
     syncNavigatorSelection();
     connections.sync(graph, selected);
+    groups.sync(graph, selected);
     if (n == null) {
       for (var field : List.of(id, inputs, formula, group, comment, template)) field.setText("");
       bypass.setSelected(false);
@@ -357,6 +363,21 @@ public final class AuthoringPanel extends JPanel {
       refresh();
       tabs.setSelectedIndex(1);
       canvas.reveal(find(graph.output));
+    } catch (IllegalArgumentException error) {
+      showProblem(error, false, true);
+    }
+  }
+
+  private void unpackGroup(String id) {
+    try {
+      var candidate = GraphTemplates.unpack(graph, id, controls);
+      remember();
+      graph = candidate;
+      output.setText(graph.output);
+      select(id);
+      refresh();
+      tabs.setSelectedIndex(1);
+      canvas.reveal(find(id));
     } catch (IllegalArgumentException error) {
       showProblem(error, false, true);
     }
@@ -421,6 +442,7 @@ public final class AuthoringPanel extends JPanel {
       canvas.cancelDrag();
       output.setText(graph.output);
       connections.sync(graph, selected);
+      groups.sync(graph, selected);
       diagnosticNode = null;
       diagnostic.setText("Submitted " + compiled.order().size() + " reachable nodes");
       canvas.repaint();
@@ -464,7 +486,7 @@ public final class AuthoringPanel extends JPanel {
 
   private void refresh() {
     refreshNavigator();
-    groups.sync(graph);
+    groups.sync(graph, selected);
     connections.sync(graph, selected);
     try {
       var c = GraphCompiler.compile(graph, controls);
@@ -485,7 +507,7 @@ public final class AuthoringPanel extends JPanel {
     output.setText(graph.output);
     canvas.resetView();
     connections.resetSelection();
-    groups.reset(graph);
+    groups.reset(graph, graph.output);
     nodeSearch.setText("");
     select(graph.output);
     refresh();

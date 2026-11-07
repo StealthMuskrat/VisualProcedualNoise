@@ -201,6 +201,7 @@ public final class CoreChecks {
     count += GraphNavigationUiChecks.run();
     count += GraphConnectionUiChecks.run();
     count += GroupCaptureUiChecks.run();
+    count += GroupUnpackUiChecks.run();
     count += AuthoringUiChecks.run();
     count += CheckpointChecks.run();
     count += QualityChecks.run();

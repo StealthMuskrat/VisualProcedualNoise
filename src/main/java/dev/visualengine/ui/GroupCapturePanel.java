@@ -19,7 +19,9 @@ final class GroupCapturePanel extends JPanel {
   private final JTextField id = new JTextField(),
       version = new JTextField(),
       name = new JTextField();
-  private final JComboBox<GraphNavigation.Choice> source = new JComboBox<>();
+  private final JComboBox<GraphNavigation.Choice> source = new JComboBox<>(),
+      instance = new JComboBox<>();
+  private boolean syncingInstances;
   private final JComboBox<String> revisions = new JComboBox<>();
   private final DefaultListModel<GraphTemplates.Exposure> entries = new DefaultListModel<>();
   private final JList<GraphTemplates.Exposure> inputs = new JList<>(entries);
@@ -28,10 +30,15 @@ final class GroupCapturePanel extends JPanel {
       remove = new JButton("Remove input"),
       up = new JButton("Move up"),
       down = new JButton("Move down"),
-      capture = new JButton("Capture graph as group");
+      capture = new JButton("Capture graph as group"),
+      unpack = new JButton("Unpack instance to root nodes");
   private EffectGraph graph;
 
-  GroupCapturePanel(Consumer<Request> submit, Consumer<Exception> problem) {
+  GroupCapturePanel(
+      Consumer<Request> submit,
+      Consumer<Exception> problem,
+      Consumer<String> selectInstance,
+      Consumer<String> unpackInstance) {
     setLayout(new BorderLayout(6, 8));
     setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
     id.setName("authoring-group-id");
@@ -40,6 +47,22 @@ final class GroupCapturePanel extends JPanel {
     source.setName("authoring-group-source");
     inputs.setName("authoring-group-inputs");
     revisions.setName("authoring-group-revisions");
+    instance.setName("authoring-group-instance");
+    unpack.setName("authoring-group-unpack");
+    instance.setPrototypeDisplayValue(
+        new GraphNavigation.Choice("Node name", EffectGraph.Kind.GROUP));
+    instance.addActionListener(
+        e -> {
+          if (!syncingInstances) {
+            var selected = (GraphNavigation.Choice) instance.getSelectedItem();
+            if (selected != null) selectInstance.accept(selected.id());
+          }
+        });
+    unpack.addActionListener(
+        e -> {
+          var selected = (GraphNavigation.Choice) instance.getSelectedItem();
+          if (selected != null) unpackInstance.accept(selected.id());
+        });
     source.setPrototypeDisplayValue(
         new GraphNavigation.Choice("Node name", EffectGraph.Kind.FORMULA));
     revisions.setPrototypeDisplayValue("local.group@1.0.0");
@@ -69,6 +92,8 @@ final class GroupCapturePanel extends JPanel {
     fields.add(version);
     fields.add(new JLabel("Embedded revisions"));
     fields.add(revisions);
+    fields.add(new JLabel("Group instance"));
+    fields.add(instance);
     fields.add(new JLabel("Source node"));
     fields.add(source);
     fields.add(new JLabel("Input name"));
@@ -143,10 +168,11 @@ final class GroupCapturePanel extends JPanel {
     bottom.add(actions, BorderLayout.NORTH);
     JPanel save = new JPanel(new BorderLayout(0, 8));
     save.add(count, BorderLayout.NORTH);
-    save.add(capture, BorderLayout.CENTER);
-    save.add(
-        new JLabel("Creates a pinned draft revision. Apply graph to activate."),
-        BorderLayout.SOUTH);
+    JPanel structural = new JPanel(new GridLayout(2, 1, 4, 4));
+    structural.add(capture);
+    structural.add(unpack);
+    save.add(structural, BorderLayout.CENTER);
+    save.add(new JLabel("Changes stay in the draft. Apply graph to activate."), BorderLayout.SOUTH);
     bottom.add(save, BorderLayout.SOUTH);
     add(bottom, BorderLayout.SOUTH);
     updateButtons();
@@ -168,14 +194,14 @@ final class GroupCapturePanel extends JPanel {
     updateButtons();
   }
 
-  void reset(EffectGraph graph) {
+  void reset(EffectGraph graph, String selected) {
     clearInputs();
     id.setText("local.group" + (graph.groups.size() + 1));
     version.setText("1.0.0");
-    sync(graph);
+    sync(graph, selected);
   }
 
-  void sync(EffectGraph graph) {
+  void sync(EffectGraph graph, String selected) {
     var previous = (GraphNavigation.Choice) source.getSelectedItem();
     this.graph = graph;
     var choices = GraphNavigation.choices(graph, "").toArray(GraphNavigation.Choice[]::new);
@@ -188,8 +214,29 @@ final class GroupCapturePanel extends JPanel {
     revisions.setModel(
         new DefaultComboBoxModel<>(
             graph.groups.stream().map(GraphTemplates.Group::key).toArray(String[]::new)));
+    var instances =
+        Arrays.stream(choices)
+            .filter(c -> c.kind() == EffectGraph.Kind.GROUP)
+            .toArray(GraphNavigation.Choice[]::new);
+    syncingInstances = true;
+    try {
+      instance.setModel(new DefaultComboBoxModel<>(instances));
+      instance.setSelectedItem(
+          Arrays.stream(instances).filter(c -> c.id().equals(selected)).findFirst().orElse(null));
+      var node = selectedInstance();
+      if (node != null && graph.groups.stream().anyMatch(g -> g.key().equals(node.template())))
+        revisions.setSelectedItem(node.template());
+    } finally {
+      syncingInstances = false;
+    }
     inputs.repaint();
     updateButtons();
+  }
+
+  private EffectGraph.Node selectedInstance() {
+    var choice = (GraphNavigation.Choice) instance.getSelectedItem();
+    if (graph == null || choice == null) return null;
+    return graph.nodes.stream().filter(n -> n.id().equals(choice.id())).findFirst().orElse(null);
   }
 
   private void updateButtons() {
@@ -200,6 +247,12 @@ final class GroupCapturePanel extends JPanel {
     up.setEnabled(index > 0);
     down.setEnabled(index >= 0 && index < entries.size() - 1);
     capture.setEnabled(graph != null && !id.getText().isBlank() && !version.getText().isBlank());
+    var node = selectedInstance();
+    unpack.setEnabled(node != null && node.kind() == EffectGraph.Kind.GROUP && !node.bypass());
+    unpack.setToolTipText(
+        node != null && node.bypass()
+            ? "Disable bypass before unpacking this instance"
+            : "Copy one group level into the root draft, preserving pinned definitions");
     count.setText(entries.size() + " / 8 exposed inputs");
   }
 }
