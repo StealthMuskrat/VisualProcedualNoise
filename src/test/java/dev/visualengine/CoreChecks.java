@@ -210,6 +210,7 @@ public final class CoreChecks {
     count += DeviceChecks.run();
     count += GpuReportChecks.run();
     count += ShaderCacheChecks.run();
+    count += PeakBudgetChecks.run();
     System.out.println("Core checks passed: " + count);
   }
 
