@@ -10,6 +10,8 @@ Located graph failures identify the original node. Apply graph selects and scrol
 
 The wrapping, scrolling status area retains the complete diagnostic within a fixed preferred height. Editing an invalid draft updates its diagnostic without changing tabs or submitting the scene. Undo graph edit restores the draft and its visible fields; loading/synchronizing another scene clears the previous scene's graph undo history. Scene undo remains a separate operation.
 
+Scene **Undo controls** now records only accepted changes. A failed source edit leaves history intact, and a failed undo retains its entry for retry after repair. See [configuration undo, held values and restart policy](UNDO.md).
+
 | Failure | Located range |
 | --- | --- |
 | Unknown symbol or function | Its name |

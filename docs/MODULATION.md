@@ -46,6 +46,8 @@ Held frames reuse the last resolved values. Pausing and requesting a single step
 
 Version 0.19 applies held-time edits at zero speed too. Metadata, transport, reference, palette and shader actions preserve unfinished resolved values rather than settling them to their targets. See [redraw demand and idle timing](PAUSED_REDRAW.md).
 
+Version 0.22 prepares held values before renderer acceptance. Rejected edits leave live smoothing intact. Undo resolves held values only when the restored numeric controls, descriptors or mappings differ; palette-only undo preserves unfinished smoothing. See [accepted scene edits and undo](UNDO.md).
+
 ## Persistence and continuation
 
 Preset schema **5** stores contextual destinations, source IDs, ranges, offsets and keys alongside base effect descriptors/values. Schemas 1..4 remain readable for their existing built-in destinations. A file containing custom destinations must declare schema 5; older builds reject that schema explicitly.

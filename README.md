@@ -68,6 +68,8 @@ Version 0.20 adds located authoring errors, formula text selection and original 
 
 Version 0.21 bounds generated expression/gradient text and final shader stages after custom-code insertion. Oversized candidates preserve the working scene; graph nodes skip unused gradient generation. See [formula limits](docs/AUTHORING.md#formula-language) and [final shader bounds](docs/SHADER_CACHE.md#source-bounds).
 
+Version 0.22 commits scene undo history only after an edit is accepted. Failed edits retain useful history, failed undo can be retried, and seed/layout/RESET restores request the appropriate restart. See [scene history and undo](docs/UNDO.md).
+
 Discovery bookmarks save artwork and its complete restarting configuration under the user-data directory. A/B comparison shows a frozen or saved finished frame on the left and the live scene on the right; this does not run two independent simulations. GPU storage is estimated before quality changes and capped at 512 MiB.
 
 ## Verification
