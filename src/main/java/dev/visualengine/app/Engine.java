@@ -7,6 +7,7 @@ import dev.visualengine.export.Capture;
 import dev.visualengine.export.Periodicity;
 import dev.visualengine.export.TextureMap;
 import dev.visualengine.gpu.*;
+import dev.visualengine.io.FileJobs;
 import dev.visualengine.model.PresetMorph;
 import dev.visualengine.model.Settings;
 import dev.visualengine.platform.DesktopLifecycle;
@@ -28,8 +29,7 @@ public final class Engine implements AutoCloseable {
   private final DiscoveryStore discoveries;
   private String bookmark, sourceDiscovery;
   private final ConcurrentLinkedQueue<Command> commands = new ConcurrentLinkedQueue<>();
-  private final ThreadPoolExecutor io =
-      new ThreadPoolExecutor(1, 1, 0, TimeUnit.SECONDS, new ArrayBlockingQueue<>(2));
+  private final FileJobs files;
   private final ScheduledExecutorService watcher = Executors.newSingleThreadScheduledExecutor();
   private final Playback clock = new Playback();
   private final ControlSignals signals = new ControlSignals();
@@ -40,8 +40,6 @@ public final class Engine implements AutoCloseable {
   private ReplayLog playbackLog, recordingLog;
   private boolean recording, lastBrush, replayBrush;
   private double replayX, replayY;
-  private final java.util.concurrent.atomic.AtomicReference<Throwable> ioFailure =
-      new java.util.concurrent.atomic.AtomicReference<>();
   private final Deque<Settings> undo = new ArrayDeque<>();
   private Settings settings = new Settings();
   private final PresetMorph.Session morph = new PresetMorph.Session();
@@ -69,6 +67,14 @@ public final class Engine implements AutoCloseable {
 
   public Engine(Options options, Path data) {
     this.options = options;
+    this.files =
+        new FileJobs(
+            2,
+            options.headless,
+            failure -> {
+              System.err.println(failure);
+              status(failure.getMessage());
+            });
     this.benchmark = options.benchmark == null ? null : new dev.visualengine.export.Benchmark();
     this.data = data;
     this.discoveries =
@@ -198,6 +204,7 @@ public final class Engine implements AutoCloseable {
     double last = glfwGetTime();
     int rendered = 0;
     while (!window.closing() && (options.frames == 0 || rendered < options.frames)) {
+      files.checkFailure();
       long frameStart = System.nanoTime();
       glfwPollEvents();
       window.resize();
@@ -350,11 +357,10 @@ public final class Engine implements AutoCloseable {
       manifest.addProperty("warmupTicks", options.warmup);
       manifest.addProperty("device", device);
       manifest.addProperty("interval", "half-open; first frame follows warmup");
-      enqueueIOBlocking(() -> {
-        if (ioFailure.get() == null)
-          PresetIO.atomicWrite(
-              options.export.resolve("sequence.json"), PresetIO.JSON.toJson(manifest));
-      });
+      enqueueIOBlocking(
+          () ->
+              PresetIO.atomicWrite(
+                  options.export.resolve("sequence.json"), PresetIO.JSON.toJson(manifest)));
     }
     if (benchmark != null) {
       var tail = renderer.finishMeasurements();
@@ -370,6 +376,7 @@ public final class Engine implements AutoCloseable {
       report.add("deviceCapabilities", PresetIO.JSON.toJsonTree(window.capabilities()));
       report.add("shaderCache", PresetIO.JSON.toJsonTree(renderer.shaderCacheStats()));
       report.add("allocation", PresetIO.JSON.toJsonTree(renderer.allocationStats()));
+      report.add("fileQueue", PresetIO.JSON.toJsonTree(files.snapshot()));
       enqueueIOBlocking(
           () -> PresetIO.atomicWrite(options.benchmark, PresetIO.JSON.toJson(report)));
     }
@@ -421,13 +428,14 @@ public final class Engine implements AutoCloseable {
     try (var paths = Files.walk(root)) {
       return paths
           .filter(Files::isRegularFile)
-          .mapToLong(p -> {
-            try {
-              return Files.getLastModifiedTime(p).toMillis() ^ Files.size(p);
-            } catch (Exception e) {
-              return 0;
-            }
-          })
+          .mapToLong(
+              p -> {
+                try {
+                  return Files.getLastModifiedTime(p).toMillis() ^ Files.size(p);
+                } catch (Exception e) {
+                  return 0;
+                }
+              })
           .sum();
     }
   }
@@ -474,11 +482,13 @@ public final class Engine implements AutoCloseable {
           report.add("scene", scene);
           report.add("shaderCache", PresetIO.JSON.toJsonTree(renderer.shaderCacheStats()));
           report.add("allocation", PresetIO.JSON.toJsonTree(renderer.allocationStats()));
-          enqueueIO(() -> {
-            PresetIO.atomicWrite(
-                (Path) c.value(), dev.visualengine.export.GpuReport.encode(report));
-            status("GPU capability report saved: " + c.value());
-          });
+          report.add("fileQueue", PresetIO.JSON.toJsonTree(files.snapshot()));
+          enqueueIO(
+              () -> {
+                PresetIO.atomicWrite(
+                    (Path) c.value(), dev.visualengine.export.GpuReport.encode(report));
+                status("GPU capability report saved: " + c.value());
+              });
           return;
         }
         case "fullscreen" -> {
@@ -522,12 +532,13 @@ public final class Engine implements AutoCloseable {
         case "morphLoad" -> {
           var request = (Command.MorphLoad) c.value();
           long generation = morph.begin(request.slot());
-          enqueueIO(() ->
-              submit(
-                  new Command(
-                      "morphLoaded",
-                      new Command.MorphLoaded(
-                          request.slot(), generation, PresetIO.load(request.path())))));
+          enqueueIO(
+              () ->
+                  submit(
+                      new Command(
+                          "morphLoaded",
+                          new Command.MorphLoaded(
+                              request.slot(), generation, PresetIO.load(request.path())))));
           return;
         }
         case "morphLoaded" -> {
@@ -689,10 +700,11 @@ public final class Engine implements AutoCloseable {
         case "save" -> {
           Settings snapshot = settings.copy();
           long tick = clock.tick();
-          enqueueIO(() -> {
-            PresetIO.save((Path) c.value(), snapshot, tick);
-            status("Preset saved");
-          });
+          enqueueIO(
+              () -> {
+                PresetIO.save((Path) c.value(), snapshot, tick);
+                status("Preset saved");
+              });
         }
         case "load" ->
             enqueueIO(() -> submit(new Command("loaded", PresetIO.load((Path) c.value()))));
@@ -764,40 +776,44 @@ public final class Engine implements AutoCloseable {
         }
         case "discoveryThumbnails" -> {
           var request = (Command.Thumbnails) c.value();
-          enqueueIO(() -> {
-            Map<String, java.awt.image.BufferedImage> images = new LinkedHashMap<>();
-            for (String id : request.ids()) {
-              try {
-                images.put(id, discoveries.thumbnail(id));
-              } catch (Exception e) {
-                status("Preview unavailable: " + id);
-              }
-            }
-            if (controls != null) controls.showDiscoveryThumbnails(request.generation(), images);
-          });
+          enqueueIO(
+              () -> {
+                Map<String, java.awt.image.BufferedImage> images = new LinkedHashMap<>();
+                for (String id : request.ids()) {
+                  try {
+                    images.put(id, discoveries.thumbnail(id));
+                  } catch (Exception e) {
+                    status("Preview unavailable: " + id);
+                  }
+                }
+                if (controls != null)
+                  controls.showDiscoveryThumbnails(request.generation(), images);
+              });
           return;
         }
         case "annotateDiscovery" -> {
           var edit = (Command.DiscoveryAnnotation) c.value();
-          enqueueIO(() -> {
-            discoveries.annotate(edit.id(), edit.label(), edit.favorite());
-            if (controls != null) controls.discoveriesChanged();
-          });
+          enqueueIO(
+              () -> {
+                discoveries.annotate(edit.id(), edit.label(), edit.favorite());
+                if (controls != null) controls.discoveriesChanged();
+              });
           return;
         }
         case "loadDiscovery" -> {
           var request = (Command.DiscoveryBranch) c.value();
-          enqueueIO(() ->
-              submit(
-                  new Command(
-                      "discoveryLoaded",
-                      new Command.DiscoveryActivation(
-                          request.id(),
-                          discoveries.branch(
+          enqueueIO(
+              () ->
+                  submit(
+                      new Command(
+                          "discoveryLoaded",
+                          new Command.DiscoveryActivation(
                               request.id(),
-                              request.variation(),
-                              request.lockComposition(),
-                              System.nanoTime())))));
+                              discoveries.branch(
+                                  request.id(),
+                                  request.variation(),
+                                  request.lockComposition(),
+                                  System.nanoTime())))));
           return;
         }
         case "discoveryLoaded" -> {
@@ -821,10 +837,12 @@ public final class Engine implements AutoCloseable {
           return;
         }
         case "discoveryReference" -> {
-          enqueueIO(() ->
-              submit(
-                  new Command(
-                      "referenceLoaded", Capture.pixels(discoveries.artwork((String) c.value())))));
+          enqueueIO(
+              () ->
+                  submit(
+                      new Command(
+                          "referenceLoaded",
+                          Capture.pixels(discoveries.artwork((String) c.value())))));
           return;
         }
         case "referenceLoaded" -> {
@@ -875,11 +893,12 @@ public final class Engine implements AutoCloseable {
           if (compiled.resources().contains("pigment")) settings.pigmentEnabled = true;
         }
         case "importEffect" ->
-            enqueueIO(() ->
-                submit(
-                    new Command(
-                        "effectLoaded",
-                        dev.visualengine.authoring.EffectPackage.load((Path) c.value()))));
+            enqueueIO(
+                () ->
+                    submit(
+                        new Command(
+                            "effectLoaded",
+                            dev.visualengine.authoring.EffectPackage.load((Path) c.value()))));
         case "effectLoaded" -> {
           sourceDiscovery = null;
           remember();
@@ -958,7 +977,7 @@ public final class Engine implements AutoCloseable {
       status("Wait for the current presentation save");
       return;
     }
-    if (io.getQueue().remainingCapacity() == 0) {
+    if (!files.canAccept()) {
       status("File queue full; wait before applying presentation settings");
       return;
     }
@@ -969,16 +988,18 @@ public final class Engine implements AutoCloseable {
     if (controls != null)
       controls.showPresentation(presentation, "Applied; saving preferences…", true);
     boolean queued =
-        enqueueIO(() -> {
-          String failure = null;
-          try {
-            PresentationIO.save(data.resolve("presentation.json"), requested);
-          } catch (Exception e) {
-            failure = e.toString();
-          }
-          submit(
-              new Command("presentationSaved", new Command.PresentationSaved(requested, failure)));
-        });
+        enqueueIO(
+            () -> {
+              String failure = null;
+              try {
+                PresentationIO.save(data.resolve("presentation.json"), requested);
+              } catch (Exception e) {
+                failure = e.toString();
+              }
+              submit(
+                  new Command(
+                      "presentationSaved", new Command.PresentationSaved(requested, failure)));
+            });
     if (!queued) {
       presentationBusy = false;
       if (controls != null)
@@ -1040,7 +1061,7 @@ public final class Engine implements AutoCloseable {
               renderer.snapshot(settings, clock.tick()),
               CheckpointIO.ReplayState.capture(
                   playbackLog, new CheckpointIO.Pointer(replayX, replayY, replayBrush)));
-      IOAction write =
+      FileJobs.Action write =
           () -> {
             try {
               CheckpointIO.save(path, snapshot);
@@ -1058,49 +1079,14 @@ public final class Engine implements AutoCloseable {
     }
   }
 
-  @FunctionalInterface
-  private interface IOAction {
-    void run() throws Exception;
+  private boolean enqueueIO(FileJobs.Action action) {
+    if (files.trySubmit(action)) return true;
+    status("File queue is full or closing; wait for the current capture");
+    return false;
   }
 
-  private boolean enqueueIO(IOAction action) {
-    try {
-      io.execute(() -> {
-        try {
-          action.run();
-        } catch (Exception e) {
-          if (options.headless) ioFailure.compareAndSet(null, e);
-          System.err.println(e);
-          status(e.getMessage());
-        }
-      });
-      return true;
-    } catch (RejectedExecutionException e) {
-      status("File queue is full; wait for the current capture");
-      return false;
-    }
-  }
-
-  private void enqueueIOBlocking(IOAction action) {
-    Runnable work =
-        () -> {
-          try {
-            action.run();
-          } catch (Exception e) {
-            ioFailure.compareAndSet(null, e);
-            status(e.getMessage());
-          }
-        };
-    try {
-      io.execute(work);
-    } catch (RejectedExecutionException full) {
-      try {
-        io.getQueue().put(work);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        throw new IllegalStateException("Export cancelled", e);
-      }
-    }
+  private void enqueueIOBlocking(FileJobs.Action action) {
+    files.submitBlocking(action);
   }
 
   private void capture(Path path) {
@@ -1113,7 +1099,7 @@ public final class Engine implements AutoCloseable {
       return;
     }
     try {
-      if (!offline && io.getQueue().remainingCapacity() == 0) {
+      if (!offline && !files.canAccept()) {
         mapBusy.set(false);
         status("File queue full; wait before exporting a map");
         return;
@@ -1139,7 +1125,7 @@ public final class Engine implements AutoCloseable {
               renderedPointer.x(),
               renderedPointer.y(),
               renderedPointer.brush());
-      IOAction write =
+      FileJobs.Action write =
           () -> {
             try {
               long clipped = TextureMap.write(request.path(), data, frame);
@@ -1170,7 +1156,7 @@ public final class Engine implements AutoCloseable {
     }
     try {
       Periodicity.requireSize(request.size());
-      if (!offline && io.getQueue().remainingCapacity() == 0) {
+      if (!offline && !files.canAccept()) {
         inspectionBusy.set(false);
         status("File queue full; wait before inspecting");
         return;
@@ -1206,7 +1192,7 @@ public final class Engine implements AutoCloseable {
                   renderedPointer.y(),
                   renderedPointer.brush())
               : null;
-      IOAction write =
+      FileJobs.Action write =
           () -> {
             try {
               var report = Periodicity.analyze(frame, first, endpoint);
@@ -1228,7 +1214,7 @@ public final class Engine implements AutoCloseable {
   }
 
   private void saveDiscovery(String label, boolean offline) {
-    if (!offline && io.getQueue().remainingCapacity() == 0) {
+    if (!offline && !files.canAccept()) {
       status("File queue full; wait before bookmarking");
       return;
     }
@@ -1244,7 +1230,7 @@ public final class Engine implements AutoCloseable {
             Math.max(1, (int) (window.height * settings.displayScale)),
             renderer.hasReference());
     String signature = renderer.programSignature(), parent = sourceDiscovery;
-    IOAction write =
+    FileJobs.Action write =
         () -> {
           var saved =
               discoveries.save(label, image, snapshot, tick, device, view, signature, parent);
@@ -1269,7 +1255,7 @@ public final class Engine implements AutoCloseable {
   }
 
   private void capture(Path path, boolean offline, dev.visualengine.export.CaptureSize size) {
-    if (!offline && io.getQueue().remainingCapacity() == 0) {
+    if (!offline && !files.canAccept()) {
       status("File queue is full; wait for the current capture");
       return;
     }
@@ -1293,7 +1279,7 @@ public final class Engine implements AutoCloseable {
     snapshot.motionClock = active.motionClock;
     snapshot.colorClock = active.colorClock;
     long tick = clock.tick();
-    IOAction write =
+    FileJobs.Action write =
         () -> {
           Capture.write(path, image, snapshot, tick, device, view);
           status("Captured " + path);
@@ -1306,17 +1292,16 @@ public final class Engine implements AutoCloseable {
   public void close() {
     accepting = false;
     watcher.shutdownNow();
-    io.shutdown();
-    try {
-      if (!io.awaitTermination(30, TimeUnit.SECONDS)) io.shutdownNow();
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      io.shutdownNow();
+    RuntimeException failure = null;
+    for (AutoCloseable resource : new AutoCloseable[] {files, controls, renderer, window}) {
+      if (resource == null) continue;
+      try {
+        resource.close();
+      } catch (Exception e) {
+        if (failure == null) failure = new IllegalStateException("Application shutdown failed", e);
+        else failure.addSuppressed(e);
+      }
     }
-    if (controls != null) controls.close();
-    if (renderer != null) renderer.close();
-    if (window != null) window.close();
-    if (ioFailure.get() != null)
-      throw new IllegalStateException("A file operation failed", ioFailure.get());
+    if (failure != null) throw failure;
   }
 }
