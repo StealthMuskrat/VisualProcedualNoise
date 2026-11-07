@@ -25,7 +25,7 @@ public final class VariantCache<T> implements AutoCloseable {
   private final LinkedHashMap<String, Entry<T>> entries = new LinkedHashMap<>();
   private long bytes, hits, misses, failures, evictions;
   private String active;
-  private boolean closed;
+  private boolean closed, building;
   private Selection pending;
 
   public VariantCache(int maximumEntries, long maximumBytes, Consumer<T> dispose) {
@@ -38,7 +38,8 @@ public final class VariantCache<T> implements AutoCloseable {
 
   public Selection prepare(String key, long weight, Supplier<T> create) {
     check();
-    if (pending != null) throw new IllegalStateException("A material candidate is already staged");
+    if (pending != null || building)
+      throw new IllegalStateException("A material candidate is already staged");
     if (key == null || key.isEmpty() || weight < 1 || weight > maximumBytes)
       throw new IllegalArgumentException("Material source exceeds the variant-cache budget");
     Entry<T> entry = entries.get(key);
@@ -49,11 +50,14 @@ public final class VariantCache<T> implements AutoCloseable {
       hits++;
     } else {
       misses++;
+      building = true;
       try {
         entry = new Entry<>(key, weight, Objects.requireNonNull(create.get()));
       } catch (RuntimeException | Error e) {
         failures++;
         throw e;
+      } finally {
+        building = false;
       }
     }
     pending = new Selection(entry, retained);
@@ -139,6 +143,7 @@ public final class VariantCache<T> implements AutoCloseable {
   public void close() {
     checkOwner();
     if (closed) return;
+    if (building) throw new IllegalStateException("A material candidate is being built");
     if (pending != null) pending.close();
     closed = true;
     entries.values().forEach(e -> dispose.accept(e.value()));

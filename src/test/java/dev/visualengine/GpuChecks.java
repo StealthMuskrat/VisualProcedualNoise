@@ -289,6 +289,7 @@ public final class GpuChecks {
       count += BenchmarkGpuChecks.run();
       count += DesktopGpuChecks.run();
       count += DeviceGpuChecks.run();
+      count += ShaderCacheGpuChecks.run();
       reloadFailure(window);
       check(glGetError() == GL_NO_ERROR, "no final GL error");
       System.out.println("GPU checks passed: " + count + " | " + glGetString(GL_RENDERER));

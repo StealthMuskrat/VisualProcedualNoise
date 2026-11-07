@@ -149,7 +149,7 @@ public final class Engine implements AutoCloseable {
             + "x"
             + window.height);
     pacer.configure(presentation.frameLimit());
-    renderer = new Renderer(new ShaderSources(options.shaders));
+    renderer = new Renderer(new ShaderSources(options.shaders), options.shaderCache);
     if (initialCheckpoint != null) restoreCheckpoint(initialCheckpoint);
     else renderer.configure(settings);
     if (options.referenceDiscovery != null)
@@ -364,6 +364,7 @@ public final class Engine implements AutoCloseable {
               snapshot, clock.tick(), window.width, window.height, device, renderer.bytes());
       report.add("presentationRequest", PresetIO.JSON.toJsonTree(presentation));
       report.add("deviceCapabilities", PresetIO.JSON.toJsonTree(window.capabilities()));
+      report.add("shaderCache", PresetIO.JSON.toJsonTree(renderer.shaderCacheStats()));
       enqueueIOBlocking(
           () -> PresetIO.atomicWrite(options.benchmark, PresetIO.JSON.toJson(report)));
     }
@@ -466,6 +467,7 @@ public final class Engine implements AutoCloseable {
           scene.addProperty("allocatedBytes", renderer.bytes());
           scene.add("presentationRequest", PresetIO.JSON.toJsonTree(presentation));
           report.add("scene", scene);
+          report.add("shaderCache", PresetIO.JSON.toJsonTree(renderer.shaderCacheStats()));
           enqueueIO(() -> {
             PresetIO.atomicWrite(
                 (Path) c.value(), dev.visualengine.export.GpuReport.encode(report));

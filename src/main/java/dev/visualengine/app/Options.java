@@ -4,6 +4,7 @@ import java.nio.file.Path;
 
 public final class Options {
   public boolean headless;
+  public boolean shaderCache = true;
   public Boolean vsync;
   public Integer frameLimit;
   public int frames, width = 1280, height = 800;
@@ -41,6 +42,13 @@ public final class Options {
     for (int i = 0; i < args.length; i++)
       switch (args[i]) {
         case "--headless" -> o.headless = true;
+        case "--shader-cache" ->
+            o.shaderCache =
+                switch (args[++i]) {
+                  case "on" -> true;
+                  case "off" -> false;
+                  default -> throw new IllegalArgumentException("Use --shader-cache on|off");
+                };
         case "--vsync" ->
             o.vsync =
                 switch (args[++i]) {

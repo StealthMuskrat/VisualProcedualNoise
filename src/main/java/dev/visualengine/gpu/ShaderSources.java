@@ -43,7 +43,7 @@ public final class ShaderSources {
   }
 
   private void expand(String name, Expansion expansion) {
-    Path relative = Path.of(name).normalize();
+    Path relative = Path.of(name.replace('\\', '/')).normalize();
     String key = relative.toString();
     if (relative.isAbsolute()
         || relative.startsWith("..")
@@ -66,6 +66,7 @@ public final class ShaderSources {
                   .onUnmappableCharacter(CodingErrorAction.REPORT)
                   .decode(ByteBuffer.wrap(data))
                   .toString();
+          if (text.indexOf('\0') >= 0) throw new IOException("Shader source contains NUL: " + name);
           expansion.files.put(key, text);
         }
       }

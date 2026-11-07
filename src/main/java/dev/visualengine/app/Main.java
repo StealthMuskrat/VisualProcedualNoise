@@ -30,6 +30,7 @@ public final class Main {
               + "--preset file.json --effect effect.json --recipe NAME --seed INTEGER --grid"
               + " 32..1024\n"
               + "--expression FORMULA --shaders DIRECTORY\n"
+              + "--shader-cache on|off (session-only inactive material retention)\n"
               + "--diagnose-gpu FILE.json (standalone hidden-context capability report)\n"
               + "--vsync on|off --frame-limit 0..240 (desktop session overrides; 0 = uncapped)\n"
               + "--quality draft|balanced|detailed (applied before --grid override)\n"

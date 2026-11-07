@@ -200,6 +200,7 @@ public final class BenchmarkSuite {
           "firstMeasuredRenderTick", (profile.warmup + 1) * BenchmarkWorkloads.TICKS_PER_FRAME);
       report.addProperty("ticksPerFrame", BenchmarkWorkloads.TICKS_PER_FRAME);
       report.addProperty("programSignature", renderer.programSignature());
+      report.add("shaderCache", PresetIO.JSON.toJsonTree(renderer.shaderCacheStats()));
       report.addProperty(
           "imageHashEncoding",
           "SHA-256 of the final PNG file, re-rendered at held final tick outside timing");

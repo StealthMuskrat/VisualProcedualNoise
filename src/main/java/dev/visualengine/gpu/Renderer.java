@@ -10,6 +10,15 @@ public final class Renderer implements AutoCloseable {
   private Program material, finish, bloom;
   private final ShaderSources sources;
   private final DeviceCapabilities capabilities;
+  private final boolean retainMaterialVariants;
+  private VariantCache<Program> materials;
+  private long materialGeneration;
+  public static final int MATERIAL_VARIANTS = 8;
+  public static final long MATERIAL_SOURCE_BYTES = 4L * 1024 * 1024;
+
+  public record ShaderCacheStats(
+      boolean retainInactive, long generation, VariantCache.Stats variants) {}
+
   private Settings compiledSettings = new Settings();
   private final int vao;
   private Texture scene, glow, marks;
@@ -36,12 +45,22 @@ public final class Renderer implements AutoCloseable {
   }
 
   public Renderer(ShaderSources sources) {
-    this(sources, GpuDevice.current());
+    this(sources, GpuDevice.current(), true);
+  }
+
+  public Renderer(ShaderSources sources, boolean retainMaterialVariants) {
+    this(sources, GpuDevice.current(), retainMaterialVariants);
   }
 
   Renderer(ShaderSources sources, DeviceCapabilities capabilities) {
+    this(sources, capabilities, true);
+  }
+
+  private Renderer(
+      ShaderSources sources, DeviceCapabilities capabilities, boolean retainMaterialVariants) {
     this.sources = sources;
     this.capabilities = capabilities;
+    this.retainMaterialVariants = retainMaterialVariants;
     capabilities.requireBaseline();
     vao = glGenVertexArrays();
     glBindVertexArray(vao);
@@ -55,27 +74,57 @@ public final class Renderer implements AutoCloseable {
 
   public void reload() {
     Program m = null, f = null, b = null;
+    var replacement =
+        new VariantCache<Program>(
+            retainMaterialVariants ? MATERIAL_VARIANTS : 1, MATERIAL_SOURCE_BYTES, Program::close);
     try {
       String vertex = sources.read("render/fullscreen.vert");
-      m = new Program(vertex, materialSource(compiledSettings));
-      m.require("viewport", "seed", "scale");
-      f = new Program(vertex, sources.read("post/finish.frag"));
-      f.require("scene", "exposure");
-      b = new Program(vertex, sources.read("post/bloom.frag"));
-      b.require("scene");
-      if (simulation != null) simulation.reload();
+      try (var selection = prepareMaterial(replacement, vertex, materialSource(compiledSettings))) {
+        f = new Program(vertex, sources.read("post/finish.frag"));
+        f.require("scene", "exposure");
+        b = new Program(vertex, sources.read("post/bloom.frag"));
+        b.require("scene");
+        if (simulation != null) simulation.reload();
+        m = selection.commit();
+      }
     } catch (RuntimeException e) {
-      if (m != null) m.close();
+      replacement.close();
       if (f != null) f.close();
       if (b != null) b.close();
       throw e;
     }
-    if (material != null) material.close();
+    if (materials != null) materials.close();
     if (finish != null) finish.close();
     if (bloom != null) bloom.close();
     material = m;
+    materials = replacement;
+    materialGeneration++;
     finish = f;
     bloom = b;
+  }
+
+  private VariantCache<Program>.Selection prepareMaterial(
+      VariantCache<Program> cache, String vertex, String fragment) {
+    long bytes =
+        (long) vertex.getBytes(java.nio.charset.StandardCharsets.UTF_8).length
+            + fragment.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+    return cache.prepare(
+        Program.graphicsKey(vertex, fragment),
+        bytes,
+        () -> {
+          Program program = new Program(vertex, fragment);
+          try {
+            program.require("viewport", "scale");
+            return program;
+          } catch (RuntimeException e) {
+            program.close();
+            throw e;
+          }
+        });
+  }
+
+  public ShaderCacheStats shaderCacheStats() {
+    return new ShaderCacheStats(retainMaterialVariants, materialGeneration, materials.stats());
   }
 
   private String materialSource(Settings settings) {
@@ -137,14 +186,16 @@ public final class Renderer implements AutoCloseable {
         Budget.persistent(settings)
             + (scene == null ? 0 : scene.bytes() + glow.bytes())
             + (reference == null ? 0 : reference.bytes()));
-    Program candidateMaterial = null;
+    VariantCache<Program>.Selection candidateMaterial = null;
+    Settings candidateSettings = null;
     Simulation candidate = null;
     Texture nextMarks = null;
     try {
       if (structureChanged(settings)) {
         candidateMaterial =
-            new Program(sources.read("render/fullscreen.vert"), materialSource(settings));
-        candidateMaterial.require("viewport", "scale");
+            prepareMaterial(
+                materials, sources.read("render/fullscreen.vert"), materialSource(settings));
+        candidateSettings = settings.copy();
       }
       if (resourcesChanged) {
         candidate = new Simulation(sources, settings);
@@ -163,9 +214,9 @@ public final class Renderer implements AutoCloseable {
       marks = nextMarks;
     }
     if (candidateMaterial != null) {
-      material.close();
-      material = candidateMaterial;
-      compiledSettings = settings.copy();
+      material = candidateMaterial.commit();
+      compiledSettings = candidateSettings;
+      candidateMaterial.close();
     }
   }
 
@@ -482,7 +533,7 @@ public final class Renderer implements AutoCloseable {
             + Budget.persistent(settings)
             + Budget.display(outputWidth, outputHeight)
             + (snapshot.reference() == null ? 0 : snapshot.reference().bytes()));
-    Renderer candidate = new Renderer(sources);
+    Renderer candidate = new Renderer(sources, capabilities, retainMaterialVariants);
     try {
       candidate.configure(settings);
       if (!candidate.programSignature().equals(snapshot.signature()))
@@ -583,7 +634,7 @@ public final class Renderer implements AutoCloseable {
 
   @Override
   public void close() {
-    if (material != null) material.close();
+    if (materials != null) materials.close();
     if (finish != null) finish.close();
     if (bloom != null) bloom.close();
     if (simulation != null) simulation.close();

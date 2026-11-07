@@ -17,20 +17,32 @@ public final class Program implements AutoCloseable {
     return new Program(new int[] {GL_COMPUTE_SHADER}, new String[] {source});
   }
 
-  private Program(int[] stages, String[] sources) {
+  public static String graphicsKey(String vertex, String fragment) {
+    return fingerprint(
+        new int[] {GL_VERTEX_SHADER, GL_FRAGMENT_SHADER}, new String[] {vertex, fragment});
+  }
+
+  private static String fingerprint(int[] stages, String[] sources) {
     try {
-      sourceHash =
-          java.util.HexFormat.of()
-              .formatHex(
-                  java.security.MessageDigest.getInstance("SHA-256")
-                      .digest(
-                          (Arrays.toString(stages) + String.join("\0", sources))
-                              .getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+      var digest = java.security.MessageDigest.getInstance("SHA-256");
+      digest.update("glsl-source-v2\0".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+      for (int i = 0; i < stages.length; i++) {
+        byte[] source = sources[i].getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        digest.update(
+            java.nio.ByteBuffer.allocate(8).putInt(stages[i]).putInt(source.length).array());
+        digest.update(source);
+      }
+      return java.util.HexFormat.of().formatHex(digest.digest());
     } catch (java.security.NoSuchAlgorithmException e) {
       throw new AssertionError(e);
     }
+  }
+
+  private Program(int[] stages, String[] sources) {
+    sourceHash = fingerprint(stages, sources);
     int program = glCreateProgram();
     List<Integer> shaders = new ArrayList<>();
+    boolean linked = false;
     try {
       for (int i = 0; i < stages.length; i++) {
         int s = glCreateShader(stages[i]);
@@ -46,10 +58,12 @@ public final class Program implements AutoCloseable {
       if (glGetProgrami(program, GL_LINK_STATUS) == GL_FALSE)
         throw new IllegalArgumentException("Shader link:\n" + glGetProgramInfoLog(program));
       id = program;
+      linked = true;
     } catch (RuntimeException e) {
       glDeleteProgram(program);
       throw e;
     } finally {
+      if (linked) shaders.forEach(s -> glDetachShader(program, s));
       shaders.forEach(s -> glDeleteShader(s));
     }
   }
