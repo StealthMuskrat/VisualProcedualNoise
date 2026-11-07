@@ -292,6 +292,7 @@ public final class GpuChecks {
       count += ShaderCacheGpuChecks.run();
       count += PeakAllocationGpuChecks.run();
       count += EffectModulationGpuChecks.run();
+      count += AuthoringDiagnosticGpuChecks.run();
       count += PausedRedrawGpuChecks.run(window);
       reloadFailure(window);
       check(glGetError() == GL_NO_ERROR, "no final GL error");
