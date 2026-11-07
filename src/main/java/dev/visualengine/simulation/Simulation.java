@@ -19,6 +19,7 @@ public final class Simulation implements AutoCloseable {
   private boolean chemicalInitialized, previousBrush;
 
   public Simulation(ShaderSources sources, Settings settings) {
+    GpuDevice.current().requireScene(settings);
     this.sources = sources;
     this.grid = settings.grid;
     Texture f = null;

@@ -13,6 +13,7 @@ public final class History implements AutoCloseable {
   private int count, head = -1;
 
   public History(int layers, int resolution) {
+    dev.visualengine.gpu.GpuDevice.current().requireHistory(layers, resolution);
     this.layers = layers;
     this.resolution = resolution;
     ticks = new long[layers];

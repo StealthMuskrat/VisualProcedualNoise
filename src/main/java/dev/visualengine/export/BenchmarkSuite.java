@@ -50,6 +50,7 @@ public final class BenchmarkSuite {
       try (Window window = new Window(profile.width, profile.height, true)) {
         suite.addProperty("contextSetupWallMs", (System.nanoTime() - contextStart) / 1e6);
         suite.addProperty("device", Renderer.deviceSignature());
+        suite.add("deviceCapabilities", PresetIO.JSON.toJsonTree(window.capabilities()));
         for (var workload : BenchmarkWorkloads.create(profile)) {
           validateWindow(window, profile);
           CaseResult result = runCase(workload, profile, window, shaders);

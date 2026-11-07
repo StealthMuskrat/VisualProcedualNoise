@@ -30,6 +30,7 @@ public final class Main {
               + "--preset file.json --effect effect.json --recipe NAME --seed INTEGER --grid"
               + " 32..1024\n"
               + "--expression FORMULA --shaders DIRECTORY\n"
+              + "--diagnose-gpu FILE.json (standalone hidden-context capability report)\n"
               + "--vsync on|off --frame-limit 0..240 (desktop session overrides; 0 = uncapped)\n"
               + "--quality draft|balanced|detailed (applied before --grid override)\n"
               + "--morph-target preset.json --morph-amount 0..1 (compatible numeric controls)\n"
@@ -61,16 +62,23 @@ public final class Main {
             "ProceduralVisualEngine");
     PrintStream console = System.err;
     try {
-      Files.createDirectories(data);
-      try (var log =
-          new PrintStream(
-              Files.newOutputStream(data.resolve("engine.log")),
-              true,
-              java.nio.charset.StandardCharsets.UTF_8)) {
+      try (var log = dev.visualengine.platform.BoundedLog.open(data)) {
         System.setErr(log);
         try {
+          log.println(
+              java.time.Instant.now()
+                  + " | Procedural Visual Engine "
+                  + dev.visualengine.presets.PresetIO.ENGINE_VERSION
+                  + " | Java "
+                  + System.getProperty("java.version")
+                  + " | "
+                  + System.getProperty("os.name")
+                  + " / "
+                  + System.getProperty("os.arch"));
           Options options = Options.parse(args);
-          if (options.benchmarkSuite != null)
+          if (options.gpuDiagnostic != null)
+            dev.visualengine.export.GpuReport.probe(options.gpuDiagnostic);
+          else if (options.benchmarkSuite != null)
             dev.visualengine.export.BenchmarkSuite.run(
                 options.benchmarkSuite, options.benchmarkProfile, options.shaders);
           else
@@ -88,7 +96,9 @@ public final class Main {
       e.printStackTrace();
       if (!java.awt.GraphicsEnvironment.isHeadless()
           && java.util.Arrays.stream(args)
-              .noneMatch(java.util.Set.of("--headless", "--export", "--benchmark-suite")::contains))
+              .noneMatch(
+                  java.util.Set.of("--headless", "--export", "--benchmark-suite", "--diagnose-gpu")
+                      ::contains))
         javax.swing.JOptionPane.showMessageDialog(
             null,
             e.getMessage() + "\nLog: " + data,

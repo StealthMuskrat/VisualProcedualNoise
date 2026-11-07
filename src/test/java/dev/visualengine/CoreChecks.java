@@ -208,6 +208,7 @@ public final class CoreChecks {
     count += PresentationUiChecks.run();
     count += DesktopChecks.run();
     count += DeviceChecks.run();
+    count += GpuReportChecks.run();
     System.out.println("Core checks passed: " + count);
   }
 

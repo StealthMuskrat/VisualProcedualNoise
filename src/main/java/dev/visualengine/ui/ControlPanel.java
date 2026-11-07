@@ -206,6 +206,7 @@ public final class ControlPanel implements AutoCloseable {
     }
     JPanel files = column();
     fileButton(files, "Save configuration preset", "save", "study.json", true);
+    fileButton(files, "Save GPU capability report", "gpuReport", "gpu-report.json", true);
     fileButton(files, "Load configuration preset (restart)", "load", "study.json", false);
     fileButton(files, "Save full simulation checkpoint", "saveCheckpoint", "study.vstate", true);
     fileButton(files, "Resume full simulation checkpoint", "loadCheckpoint", "study.vstate", false);

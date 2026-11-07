@@ -131,14 +131,18 @@ public record DeviceCapabilities(
   }
 
   public void requireViewport(int width, int height) {
-    require(
-        width > 0
-            && height > 0
-            && width <= limit("GL_MAX_VIEWPORT_WIDTH")
-            && height <= limit("GL_MAX_VIEWPORT_HEIGHT")
-            && width <= limit("GL_MAX_FRAMEBUFFER_WIDTH")
-            && height <= limit("GL_MAX_FRAMEBUFFER_HEIGHT"),
-        "Output viewport " + width + "x" + height + " exceeds device framebuffer/viewport limits");
+    if (width <= 0
+        || height <= 0
+        || width > limit("GL_MAX_VIEWPORT_WIDTH")
+        || height > limit("GL_MAX_VIEWPORT_HEIGHT")
+        || width > limit("GL_MAX_FRAMEBUFFER_WIDTH")
+        || height > limit("GL_MAX_FRAMEBUFFER_HEIGHT"))
+      throw new IllegalArgumentException(
+          "Output viewport "
+              + width
+              + "x"
+              + height
+              + " exceeds device framebuffer/viewport limits");
   }
 
   public void requireHistory(int layers, int resolution) {

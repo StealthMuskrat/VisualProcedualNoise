@@ -16,6 +16,7 @@ public final class Window implements AutoCloseable {
   private org.lwjgl.system.Callback debug;
   private final boolean headless;
   private Presentation presentation;
+  private dev.visualengine.gpu.DeviceCapabilities capabilities;
   private final DesktopInput input = new DesktopInput();
   private boolean timingReset;
   private WindowedRestore windowedRestore;
@@ -64,6 +65,10 @@ public final class Window implements AutoCloseable {
         throw new IllegalStateException("The active graphics driver does not provide OpenGL 4.3.");
       }
       debug = GLUtil.setupDebugMessageCallback(System.err);
+      capabilities = dev.visualengine.gpu.GpuDevice.install();
+      System.err.println(
+          "GPU capabilities: " + dev.visualengine.presets.PresetIO.JSON.toJson(capabilities));
+      capabilities.requireBaseline();
       applyPresentation(requested);
       if (!headless) {
         input.focus(glfwGetWindowAttrib(handle, GLFW_FOCUSED) == GLFW_TRUE);
@@ -106,6 +111,10 @@ public final class Window implements AutoCloseable {
   /** Application request; driver settings may override swap synchronization. */
   public Presentation presentation() {
     return presentation;
+  }
+
+  public dev.visualengine.gpu.DeviceCapabilities capabilities() {
+    return capabilities;
   }
 
   public void resize() {
@@ -284,6 +293,7 @@ public final class Window implements AutoCloseable {
 
   @Override
   public void close() {
+    dev.visualengine.gpu.GpuDevice.clear();
     if (debug != null) debug.free();
     if (handle != NULL) {
       Callbacks.glfwFreeCallbacks(handle);

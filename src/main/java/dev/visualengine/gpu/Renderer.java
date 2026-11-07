@@ -9,6 +9,7 @@ import dev.visualengine.time.Playback;
 public final class Renderer implements AutoCloseable {
   private Program material, finish, bloom;
   private final ShaderSources sources;
+  private final DeviceCapabilities capabilities;
   private Settings compiledSettings = new Settings();
   private final int vao;
   private Texture scene, glow, marks;
@@ -35,7 +36,13 @@ public final class Renderer implements AutoCloseable {
   }
 
   public Renderer(ShaderSources sources) {
+    this(sources, GpuDevice.current());
+  }
+
+  Renderer(ShaderSources sources, DeviceCapabilities capabilities) {
     this.sources = sources;
+    this.capabilities = capabilities;
+    capabilities.requireBaseline();
     vao = glGenVertexArrays();
     glBindVertexArray(vao);
     try {
@@ -120,6 +127,12 @@ public final class Renderer implements AutoCloseable {
 
   public void configure(Settings settings) {
     settings.validate();
+    boolean resourcesChanged =
+        simulation == null
+            || simulation.grid != settings.grid
+            || simulation.particles.count != settings.particles
+            || simulation.history.layers != settings.historyLayers;
+    if (resourcesChanged) capabilities.requireScene(settings);
     Budget.require(
         Budget.persistent(settings)
             + (scene == null ? 0 : scene.bytes() + glow.bytes())
@@ -133,10 +146,7 @@ public final class Renderer implements AutoCloseable {
             new Program(sources.read("render/fullscreen.vert"), materialSource(settings));
         candidateMaterial.require("viewport", "scale");
       }
-      if (simulation == null
-          || simulation.grid != settings.grid
-          || simulation.particles.count != settings.particles
-          || simulation.history.layers != settings.historyLayers) {
+      if (resourcesChanged) {
         candidate = new Simulation(sources, settings);
         nextMarks = new Texture(settings.grid, settings.grid, GL_RGBA16F);
       }
@@ -198,6 +208,8 @@ public final class Renderer implements AutoCloseable {
 
   private void ensureOutput(int w, int h) {
     if (scene != null && scene.width == w && scene.height == h) return;
+    capabilities.requireTexture("RGBA16F", w, h);
+    capabilities.requireViewport(w, h);
     Budget.require(
         simulation.bytes()
             + marks.bytes()
@@ -226,6 +238,7 @@ public final class Renderer implements AutoCloseable {
   }
 
   public void render(Settings s, double time, int w, int h, double x, double y, boolean brush) {
+    capabilities.requireViewport(w, h);
     configure(s);
     ensureOutput(Math.max(1, (int) (w * s.displayScale)), Math.max(1, (int) (h * s.displayScale)));
     timer.begin(measurementFrame);
@@ -320,6 +333,9 @@ public final class Renderer implements AutoCloseable {
         || structureChanged(s))
       throw new IllegalArgumentException("Configure the current scene before capturing");
     int w = size.width(), h = size.height();
+    capabilities.requireTexture("RGBA16F", w, h);
+    capabilities.requireTexture("RGBA8", w, h);
+    capabilities.requireViewport(w, h);
     Budget.require(bytes() + Budget.display(w, h) + (long) w * h * 4);
     int read = glGetInteger(GL_READ_FRAMEBUFFER_BINDING),
         draw = glGetInteger(GL_DRAW_FRAMEBUFFER_BINDING);
@@ -367,6 +383,8 @@ public final class Renderer implements AutoCloseable {
       throw new IllegalArgumentException("Configure the current scene before exporting maps");
     material.require("mapOutput");
     int w = size.width(), h = size.height();
+    capabilities.requireTexture(kind.channels == 1 ? "R32F" : "RGBA32F", w, h);
+    capabilities.requireViewport(w, h);
     Budget.require(bytes() + (long) w * h * kind.gpuChannels() * 4);
     int read = glGetInteger(GL_READ_FRAMEBUFFER_BINDING),
         draw = glGetInteger(GL_DRAW_FRAMEBUFFER_BINDING);

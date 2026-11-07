@@ -15,6 +15,7 @@ public final class Particles implements AutoCloseable {
   private boolean initialize = true;
 
   public Particles(ShaderSources sources, int count, int resolution) {
+    GpuDevice.current().requireParticles(count);
     this.count = count;
     buffer = glGenBuffers();
     vao = glGenVertexArrays();

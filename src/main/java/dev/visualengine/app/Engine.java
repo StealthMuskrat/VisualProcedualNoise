@@ -135,6 +135,19 @@ public final class Engine implements AutoCloseable {
     }
     window = new Window(options.width, options.height, options.headless, presentation);
     presentation = window.presentation();
+    System.err.println(
+        "Resolved quality: grid="
+            + settings.grid
+            + " particles="
+            + settings.particles
+            + " historyLayers="
+            + settings.historyLayers
+            + " displayScale="
+            + settings.displayScale
+            + " framebuffer="
+            + window.width
+            + "x"
+            + window.height);
     pacer.configure(presentation.frameLimit());
     renderer = new Renderer(new ShaderSources(options.shaders));
     if (initialCheckpoint != null) restoreCheckpoint(initialCheckpoint);
@@ -350,6 +363,7 @@ public final class Engine implements AutoCloseable {
           benchmark.report(
               snapshot, clock.tick(), window.width, window.height, device, renderer.bytes());
       report.add("presentationRequest", PresetIO.JSON.toJsonTree(presentation));
+      report.add("deviceCapabilities", PresetIO.JSON.toJsonTree(window.capabilities()));
       enqueueIOBlocking(
           () -> PresetIO.atomicWrite(options.benchmark, PresetIO.JSON.toJson(report)));
     }
@@ -439,6 +453,26 @@ public final class Engine implements AutoCloseable {
     boolean resetBefore = reset;
     try {
       switch (c.type()) {
+        case "gpuReport" -> {
+          var report = dev.visualengine.export.GpuReport.document(window.capabilities(), null);
+          var scene = new com.google.gson.JsonObject();
+          scene.addProperty("referenceTick", clock.tick());
+          scene.addProperty("grid", settings.grid);
+          scene.addProperty("particles", settings.particles);
+          scene.addProperty("historyLayers", settings.historyLayers);
+          scene.addProperty("displayScale", settings.displayScale);
+          scene.addProperty("framebufferWidth", window.width);
+          scene.addProperty("framebufferHeight", window.height);
+          scene.addProperty("allocatedBytes", renderer.bytes());
+          scene.add("presentationRequest", PresetIO.JSON.toJsonTree(presentation));
+          report.add("scene", scene);
+          enqueueIO(() -> {
+            PresetIO.atomicWrite(
+                (Path) c.value(), dev.visualengine.export.GpuReport.encode(report));
+            status("GPU capability report saved: " + c.value());
+          });
+          return;
+        }
         case "fullscreen" -> {
           if (!options.headless) {
             boolean enabled = window.toggleFullscreen();

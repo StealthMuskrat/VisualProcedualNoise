@@ -26,6 +26,7 @@ public final class Options {
   public Path export, replay;
   public Path benchmark;
   public Path benchmarkSuite;
+  public Path gpuDiagnostic;
   public dev.visualengine.export.BenchmarkWorkloads.Profile benchmarkProfile =
       dev.visualengine.export.BenchmarkWorkloads.Profile.QUICK;
   private boolean explicitBenchmarkProfile;
@@ -93,6 +94,7 @@ public final class Options {
         case "--replay" -> o.replay = Path.of(args[++i]);
         case "--benchmark" -> o.benchmark = Path.of(args[++i]);
         case "--benchmark-suite" -> o.benchmarkSuite = Path.of(args[++i]);
+        case "--diagnose-gpu" -> o.gpuDiagnostic = Path.of(args[++i]);
         case "--benchmark-profile" -> {
           o.benchmarkProfile =
               dev.visualengine.export.BenchmarkWorkloads.Profile.valueOf(
@@ -113,6 +115,14 @@ public final class Options {
         case "--seed" -> o.seed = Long.parseLong(args[++i]);
         default -> throw new IllegalArgumentException("Unknown option: " + args[i]);
       }
+    if (o.gpuDiagnostic != null) {
+      for (String arg : args)
+        if (arg.startsWith("--") && !java.util.Set.of("--diagnose-gpu", "--headless").contains(arg))
+          throw new IllegalArgumentException(
+              "GPU diagnostic mode accepts only --diagnose-gpu FILE and --headless");
+      o.headless = true;
+      return o;
+    }
     if (o.benchmarkSuite != null) {
       var allowed =
           java.util.Set.of("--benchmark-suite", "--benchmark-profile", "--headless", "--shaders");

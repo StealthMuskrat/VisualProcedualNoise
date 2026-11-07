@@ -8,6 +8,7 @@ public final class Texture implements AutoCloseable {
   public Texture(int width, int height, int format) {
     if (width < 1 || height < 1 || width > 8192 || height > 8192)
       throw new IllegalArgumentException("Invalid texture extent");
+    GpuDevice.current().requireTexture(GpuDevice.textureName(format), width, height);
     this.width = width;
     this.height = height;
     this.format = format;
