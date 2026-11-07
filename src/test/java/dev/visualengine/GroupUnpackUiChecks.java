@@ -5,6 +5,7 @@ import dev.visualengine.authoring.*;
 import dev.visualengine.model.Settings;
 import dev.visualengine.ui.AuthoringPanel;
 import java.awt.*;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.nio.file.*;
 import java.util.*;
@@ -114,6 +115,40 @@ public final class GroupUnpackUiChecks {
           check(
               accepted.nodes.size() == 9 && accepted.groups.equals(settings.graph.groups),
               "Apply submits unpacked members without changing pinned definitions");
+          String overlapMember =
+              accepted.nodes.stream()
+                  .filter(n -> n.kind() == EffectGraph.Kind.VECTOR3)
+                  .findFirst()
+                  .orElseThrow()
+                  .id();
+          choose(navigator, overlapMember);
+          var canvas = find(panel, "canvas");
+          for (int[] event :
+              new int[][] {
+                {MouseEvent.MOUSE_PRESSED, 10, 10},
+                {MouseEvent.MOUSE_DRAGGED, 30, 40},
+                {MouseEvent.MOUSE_RELEASED, 30, 40}
+              })
+            canvas.dispatchEvent(
+                new MouseEvent(
+                    canvas, event[0], 1, 0, event[1], event[2], 1, false, MouseEvent.BUTTON1));
+          click(panel, "apply-graph");
+          var moved =
+              submitted(commands).nodes.stream()
+                  .filter(n -> n.id().equals(overlapMember))
+                  .findFirst()
+                  .orElseThrow();
+          check(
+              moved.x() == 20
+                  && moved.y() == 30
+                  && submitted(commands).nodes.getFirst().equals(settings.graph.nodes.getFirst()),
+              "overlapping unpacked nodes pick and drag the selected visible member");
+          click(panel, "undo");
+          click(panel, "apply-graph");
+          check(
+              nodeId.getText().equals(overlapMember)
+                  && GraphEdits.same(submitted(commands), accepted),
+              "overlap drag undo restores its complete graph and selected member");
           click(panel, "undo");
           click(panel, "apply-graph");
           check(

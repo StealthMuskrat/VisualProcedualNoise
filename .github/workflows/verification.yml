@@ -59,6 +59,7 @@ jobs:
           python3 scripts/verify-graph-edits.py
           python3 scripts/verify-graph-connections.py
           python3 scripts/verify-group-capture.py
+          python3 scripts/verify-group-unpack.py
       - name: Save verification reports and recipe gallery
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7

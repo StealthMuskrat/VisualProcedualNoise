@@ -559,6 +559,16 @@ public final class AuthoringPanel extends JPanel {
           .orElse(false);
     }
 
+    private List<EffectGraph.Node> paintOrder() {
+      var nodes = new ArrayList<>(graph.nodes);
+      var node = find(selected);
+      if (node != null) {
+        nodes.remove(node);
+        nodes.add(node);
+      }
+      return nodes;
+    }
+
     Canvas() {
       setPreferredSize(new Dimension(1200, 900));
       setBackground(new Color(25, 29, 38));
@@ -566,7 +576,7 @@ public final class AuthoringPanel extends JPanel {
           new MouseAdapter() {
             public void mousePressed(MouseEvent e) {
               EffectGraph.Node hit =
-                  graph.nodes.stream()
+                  paintOrder().reversed().stream()
                       .filter(n -> contains(n, e.getPoint()))
                       .findFirst()
                       .orElse(null);
@@ -632,7 +642,7 @@ public final class AuthoringPanel extends JPanel {
             }
           }
         }
-      for (var n : graph.nodes) {
+      for (var n : paintOrder()) {
         var position = view.position(n);
         if (position.isEmpty()) continue;
         int x = position.get().x(), y = position.get().y();
