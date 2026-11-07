@@ -37,6 +37,7 @@ jobs:
           build/install/procedural-visual-engine/bin/procedural-visual-engine --verify-installation
           python3 scripts/verify-replay.py
           python3 scripts/verify-replay.py --fixture build/reports/group-replay-fixture.json
+          python3 scripts/verify-replay.py --fixture build/reports/desktop-replay-fixture.json
           python3 scripts/verify-checkpoint.py
           python3 scripts/verify-still.py
           python3 scripts/verify-discovery.py
