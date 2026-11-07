@@ -24,6 +24,8 @@ Replay targets the same build, algorithm revision and compatible device. It does
 
 [Directional Gabor effects](DIRECTIONAL_NOISE.md) use ordinary effect descriptors and control events. Their seeded fields, integrated phase and unfinished bandwidth smoothing follow the same capture, replay and checkpoint contracts as other custom effects.
 
+[Custom-control modulation](MODULATION.md) stores scalar/component destinations and mapping edits in schema 5 presets embedded in ordinary replay events. Checkpoints preserve the resolved custom smoothing needed to continue through future mapping changes.
+
 ## Image sequences
 
 ```powershell

@@ -60,6 +60,8 @@ Version 0.16 stages artwork/map PNGs and metadata together, restores previous fi
 
 Version 0.17 makes file-worker draining, cancellation and backpressure explicit. Offline exports stop after the first file failure; shutdown reports unfinished work and still attempts graphics cleanup. Session reports include queue counters. See [file work and shutdown behavior](docs/FILE_WORK.md).
 
+Version 0.18 adds modulation of custom scalar/vector components, editable ordered mappings and held-time paused edits. Preset schema 5 stores contextual destinations; older presets remain readable. Try `--preset examples/presets/modulated-custom.json`. See [custom modulation, smoothing and persistence](docs/MODULATION.md).
+
 Discovery bookmarks save artwork and its complete restarting configuration under the user-data directory. A/B comparison shows a frozen or saved finished frame on the left and the live scene on the right; this does not run two independent simulations. GPU storage is estimated before quality changes and capped at 512 MiB.
 
 ## Verification

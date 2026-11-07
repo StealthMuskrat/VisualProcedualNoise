@@ -50,7 +50,9 @@ Recent recipes, formulas and graphs can reuse their linked material program when
 
 Effect API 2 adds user-defined FLOAT, VEC2, VEC3 and VEC4 controls. The Effect controls tab edits descriptors and generates component controls from their labels, units, defaults, bounds, steps, linear/logarithmic mapping and update policy. Use a descriptor ID directly in a formula. Values are uploaded as namespaced uniforms; ordinary value edits keep the linked program. SMOOTHED values converge on fixed ticks, while RESET controls restart persistent state.
 
-Schemas are limited to sixteen controls. IDs cannot shadow built-in controls or formula symbols. Every vector component must match its declared width and bounds. Preset schema 4 stores descriptors and resolved values; older preset schemas retain their previous behavior with an empty custom schema.
+Schemas are limited to sixteen controls. IDs cannot shadow built-in controls or formula symbols. Every vector component must match its declared width and bounds. Preset schema 4 introduced descriptors and base values; schema 5 adds contextual modulation destinations. Legacy schemas remain readable.
+
+The Modulation tab can animate uniform/smoothed effect scalars and individual vector components. Draft edits and reordering require explicit Apply, and reset-required controls are excluded. See [modulation order, timing, smoothing and persistence](MODULATION.md).
 
 Exported API 2 packages include custom controls, values and requested state-system flags. A canonical SHA-256 definition hash identifies their complete contents and is checked on import. For an intentional manual JSON edit, remove the old definitionHash and export again after validation. API 1 packages remain readable.
 
