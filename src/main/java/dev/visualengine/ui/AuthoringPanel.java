@@ -31,6 +31,8 @@ public final class AuthoringPanel extends JPanel {
       output = new JTextField();
   private final JComboBox<EffectGraph.Kind> kind = new JComboBox<>(EffectGraph.Kind.values());
   private final JCheckBox bypass = new JCheckBox("Bypass selected node");
+  private final JComboBox<GraphPreviews.Mode> previewMode =
+      new JComboBox<>(GraphPreviews.Mode.values());
   private final JTextArea diagnostic = new JTextArea("Ready", 3, 28);
   private final JTabbedPane tabs = new JTabbedPane();
   private final ConnectionPanel connections;
@@ -181,11 +183,11 @@ public final class AuthoringPanel extends JPanel {
     edit.add(previous);
     JButton preview = new JButton("Preview selected output");
     preview.setName("authoring-preview");
-    preview.addActionListener(
-        e -> {
-          if (selected != null) applyGraph(selected);
-        });
+    preview.addActionListener(e -> previewSelected());
     edit.add(preview);
+    previewMode.setName("authoring-preview-mode");
+    edit.add(new JLabel("Preview interpretation"));
+    edit.add(previewMode);
     edit.add(new JLabel("Active output node"));
     output.setText(graph.output);
     edit.add(output);
@@ -431,16 +433,32 @@ public final class AuthoringPanel extends JPanel {
     applyGraph(output.getText().trim());
   }
 
-  private void applyGraph(String requestedOutput) {
+  private void previewSelected() {
+    if (selected == null) return;
     try {
-      EffectGraph candidate = graph.copy();
-      candidate.output = requestedOutput;
+      applyGraph(
+          GraphPreviews.prepare(
+              graph, selected, (GraphPreviews.Mode) previewMode.getSelectedItem(), controls));
+    } catch (Exception error) {
+      showProblem(error, true, true);
+    }
+  }
+
+  private void applyGraph(String requestedOutput) {
+    var candidate = graph.copy();
+    candidate.output = requestedOutput;
+    applyGraph(candidate);
+  }
+
+  private void applyGraph(EffectGraph candidate) {
+    try {
       var compiled = GraphCompiler.compile(candidate, controls);
       submit.accept(new Command("graph", candidate.copy()));
       if (!GraphEdits.same(graph, candidate)) remember();
       graph = candidate;
       canvas.cancelDrag();
       output.setText(graph.output);
+      refreshNavigator();
       connections.sync(graph, selected);
       groups.sync(graph, selected);
       diagnosticNode = null;
@@ -507,6 +525,7 @@ public final class AuthoringPanel extends JPanel {
     output.setText(graph.output);
     canvas.resetView();
     connections.resetSelection();
+    previewMode.setSelectedItem(GraphPreviews.Mode.SCALAR);
     groups.reset(graph, graph.output);
     nodeSearch.setText("");
     select(graph.output);

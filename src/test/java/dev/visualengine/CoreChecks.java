@@ -203,6 +203,7 @@ public final class CoreChecks {
     count += GraphConnectionUiChecks.run();
     count += GroupCaptureUiChecks.run();
     count += GroupUnpackUiChecks.run();
+    count += GraphPreviewUiChecks.run();
     count += AuthoringUiChecks.run();
     count += CheckpointChecks.run();
     count += QualityChecks.run();
