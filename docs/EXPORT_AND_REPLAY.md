@@ -55,4 +55,6 @@ gradlew.bat clean coreCheck packageWindows -PnativePlatform=natives-windows
 build\package\ProceduralVisualEngine\ProceduralVisualEngine.exe --help
 ```
 
-Distribute the entire `build/package/ProceduralVisualEngine` folder. It contains a Java runtime and matching x64 native libraries. The app-image path requires no WiX installer tools. Building signed exe/msi installers, signing identities and supported Windows-version claims remain distribution decisions after hardware acceptance testing.
+Distribute the entire `build/package/ProceduralVisualEngine` folder. It contains a Java runtime and matching x64 native libraries. Version 0.29 also places `docs/WINDOWS_ACCEPTANCE.md` and an `acceptance-shaders` copy beside the executable. Follow the [acceptance guide](WINDOWS_ACCEPTANCE.md) to collect machine evidence and complete physical desktop/visual/endurance review. Copy the shader directory elsewhere before manual reload tests; ordinary acceptance runs use bundled resources. No separate Java or Python installation is needed by the acceptance command.
+
+The app-image path requires no WiX installer tools. Building signed exe/msi installers, signing identities and supported Windows-version claims remain distribution decisions after hardware acceptance testing.

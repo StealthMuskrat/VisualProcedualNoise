@@ -13,6 +13,9 @@ The destination must not exist. The suite uses an invisible window, swap interva
 | smoke | 96×64 | 65×65 | 257 | 3 | 8 | 16 | 48 |
 | quick (default) | 320×200 | 129×129 | 4096 | 8 | 30 | 60 | 180 |
 | standard | 1280×720 | 256×256 | 16384 | 16 | 60 | 180 | 480 |
+| fullhd (v0.29) | 1920×1080 | 257×257 | 16384 | 16 | 60 | 180 | 480 |
+
+Version 0.29 adds fullhd without changing earlier profiles or their workload hashes. The odd simulation-grid dimension also exercises dispatch tails. Use the [acceptance runner](WINDOWS_ACCEPTANCE.md) to collect installation, GPU and archive identity alongside a chosen suite. Its default is smoke; ordinary benchmark suites retain quick as their default. Fullhd supplies a fixed workload for physical Windows measurements and does not automatically certify interactive 60 fps or minimum hardware requirements.
 
 Each profile runs the same case identities with profile-specific resolution/layout and duration:
 

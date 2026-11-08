@@ -18,6 +18,10 @@ reports = Path("build/reports").resolve()
 if not launcher.is_file():
     raise SystemExit("Run installDist before verify-benchmarks.py")
 
+def staging_inventory(root):
+    return {path.name: [str(child.relative_to(path)) for child in sorted(path.rglob("*"))[:32]]
+            for path in sorted(root.glob(".benchmark-pending-*"))}
+
 def validate(report, warmup, samples, ticks):
     if report["benchmarkVersion"] != 2 or report["samples"] != samples or report["warmupFrames"] != warmup:
         raise SystemExit("Benchmark sample window metadata is incorrect")
@@ -38,6 +42,9 @@ with tempfile.TemporaryDirectory(prefix="benchmark-check-", dir=reports) as temp
     root.mkdir()
     for name in ("first", "second"):
         subprocess.run([str(launcher), "--benchmark-suite", str(root / name), "--benchmark-profile", "smoke"], check=True)
+        remaining = staging_inventory(root)
+        if remaining:
+            raise SystemExit(f"Published {name} suite left staging: {json.dumps(remaining)}")
     first = json.loads((root / "first/suite.json").read_text())
     second = json.loads((root / "second/suite.json").read_text())
     if len(first["cases"]) != 7 or first["profile"] != "smoke" or first["device"] != second["device"]:
@@ -99,7 +106,7 @@ with tempfile.TemporaryDirectory(prefix="benchmark-check-", dir=reports) as temp
     bad = root / "bad shaders"
     bad.mkdir()
     failed = subprocess.run([str(launcher), "--benchmark-suite", str(root / "failed"), "--benchmark-profile", "smoke", "--shaders", str(bad)], capture_output=True, text=True)
-    remaining = list(root.glob(".benchmark-pending-*"))
+    remaining = staging_inventory(root)
     if failed.returncode == 0 or (root / "failed").exists() or remaining:
-        raise SystemExit(f"Failed suite preservation: exit={failed.returncode}, destination={(root / 'failed').exists()}, staging={[p.name for p in remaining]}\n{failed.stdout}\n{failed.stderr[-3000:]}")
+        raise SystemExit(f"Failed suite preservation: exit={failed.returncode}, destination={(root / 'failed').exists()}, staging={json.dumps(remaining)}\n{failed.stdout}\n{failed.stderr[-3000:]}")
     print("Installed-launcher benchmark check passed: unique query coverage, seven repeatable workload/image/state outcomes, ordinary replay equivalence and destination/failure preservation")
