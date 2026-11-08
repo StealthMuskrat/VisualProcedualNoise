@@ -14,7 +14,8 @@ public final class BenchmarkWorkloads {
   public enum Profile {
     SMOKE(96, 64, 65, 257, 3, 8, 16),
     QUICK(320, 200, 129, 4096, 8, 30, 60),
-    STANDARD(1280, 720, 256, 16384, 16, 60, 180);
+    STANDARD(1280, 720, 256, 16384, 16, 60, 180),
+    FULLHD(1920, 1080, 257, 16384, 16, 60, 180);
     public final int width, height, grid, particles, history, warmup, samples;
 
     Profile(int width, int height, int grid, int particles, int history, int warmup, int samples) {

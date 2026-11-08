@@ -220,6 +220,7 @@ public final class CoreChecks {
     count += InspectionUiChecks.run();
     count += BenchmarkChecks.run();
     count += BenchmarkCliChecks.run();
+    count += dev.visualengine.export.AcceptanceChecks.run();
     count += PresentationChecks.run();
     count += PresentationUiChecks.run();
     count += DesktopChecks.run();
