@@ -38,6 +38,44 @@ public final class GraphCompiler {
   }
 
   public static Compiled compile(EffectGraph graph, List<EffectControl> controls) {
+    GraphCompiler c = analyze(graph, controls);
+    c.values.clear();
+    c.shared.clear();
+    c.lines.clear();
+    c.order.clear();
+    c.resources.clear();
+    c.expandedCost = 0;
+    Value output = c.visit(graph.output);
+    if (output.port() != Port.SCALAR)
+      throw AuthoringDiagnostic.inNodes(
+          c.nodePaths.get(graph.output),
+          new IllegalArgumentException(
+              "Graph output must be scalar; use MASK or HASH_ID to convert semantic types"));
+    String function =
+        "float customField(vec2 p) {\n"
+            + String.join("\n", c.lines)
+            + "\nreturn "
+            + output.code()
+            + ";\n}\n";
+    if (GeneratedSource.bytes(function) > GeneratedSource.LIMIT)
+      throw new IllegalArgumentException("Generated graph source exceeds 64 KiB");
+    Map<String, Port> types = new LinkedHashMap<>();
+    c.values.forEach((id, v) -> types.put(id, v.port()));
+    return new Compiled(
+        function, Set.copyOf(c.resources), Map.copyOf(types), List.copyOf(c.order), function);
+  }
+
+  /**
+   * Validated types for every authored root, including disconnected fragments and vector outputs.
+   */
+  public static Map<String, Port> rootTypes(EffectGraph graph, List<EffectControl> controls) {
+    var compiler = analyze(graph, controls);
+    Map<String, Port> types = new LinkedHashMap<>();
+    for (var node : graph.nodes) types.put(node.id(), compiler.values.get(node.id()).port());
+    return Collections.unmodifiableMap(types);
+  }
+
+  private static GraphCompiler analyze(EffectGraph graph, List<EffectControl> controls) {
     EffectControl.validateSchema(controls);
     var expanded = GraphTemplates.expandWithOrigins(graph);
     graph = expanded.graph();
@@ -68,33 +106,9 @@ public final class GraphCompiler {
                 : c.nodePaths.getOrDefault(n.id(), List.of(String.valueOf(n.id()))),
             new IllegalArgumentException("Invalid or duplicate graph node ID"));
     }
-    // Validate every node, including disconnected authoring fragments, then prune execution to the
-    // output.
+    // Validate every node, including disconnected authoring fragments.
     for (var n : graph.nodes) c.visit(n.id());
-    c.values.clear();
-    c.shared.clear();
-    c.lines.clear();
-    c.order.clear();
-    c.resources.clear();
-    c.expandedCost = 0;
-    Value output = c.visit(graph.output);
-    if (output.port() != Port.SCALAR)
-      throw AuthoringDiagnostic.inNodes(
-          c.nodePaths.get(graph.output),
-          new IllegalArgumentException(
-              "Graph output must be scalar; use MASK or HASH_ID to convert semantic types"));
-    String function =
-        "float customField(vec2 p) {\n"
-            + String.join("\n", c.lines)
-            + "\nreturn "
-            + output.code()
-            + ";\n}\n";
-    if (GeneratedSource.bytes(function) > GeneratedSource.LIMIT)
-      throw new IllegalArgumentException("Generated graph source exceeds 64 KiB");
-    Map<String, Port> types = new LinkedHashMap<>();
-    c.values.forEach((id, v) -> types.put(id, v.port()));
-    return new Compiled(
-        function, Set.copyOf(c.resources), Map.copyOf(types), List.copyOf(c.order), function);
+    return c;
   }
 
   private Value visit(String id) {
