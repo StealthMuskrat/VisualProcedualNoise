@@ -13,11 +13,12 @@ import java.util.*;
 public final class AcceptanceVerifier {
   private static final long MAX_FILE = 64L * 1024 * 1024, MAX_TOTAL = 512L * 1024 * 1024;
   private static final String MANIFEST = "results.json", MANUAL = "manual-review.md";
-  private final Path root;
+  private final Path root, realRoot;
   private final Map<String, JsonObject> inventory = new HashMap<>();
 
-  private AcceptanceVerifier(Path root) {
+  private AcceptanceVerifier(Path root) throws IOException {
     this.root = root;
+    this.realRoot = root.toRealPath();
   }
 
   public static JsonObject verify(Path directory, String expectedManifestHash) throws IOException {
@@ -110,7 +111,8 @@ public final class AcceptanceVerifier {
       inventory.put(name, item);
     }
     int reviewFiles = tree();
-    if (!status.equals("failed")) {
+    String gpuStatus = string(report.getAsJsonObject("steps").getAsJsonObject("gpu"), "status");
+    if (gpuStatus.equals("passed") || gpuStatus.equals("blocked")) {
       require(inventory.containsKey("gpu.json"), "GPU evidence is missing");
       var gpu = EvidenceJson.read(file("gpu.json"));
       require(number(gpu, "reportVersion") == 1, "Unsupported GPU report version");
@@ -120,7 +122,7 @@ public final class AcceptanceVerifier {
               && string(gpu, "architecture").equals(arch)
               && string(gpu, "javaVersion").equals(string(host, "java.version")),
           "GPU report and observed runtime disagree");
-      if (status.equals("blocked")) {
+      if (gpuStatus.equals("blocked")) {
         require(
             string(gpu, "status").equals("failed")
                 && !Files.exists(root.resolve("benchmark"), LinkOption.NOFOLLOW_LINKS)
@@ -132,7 +134,7 @@ public final class AcceptanceVerifier {
                 && gpu.get("capabilities").isJsonObject()
                 && gpu.getAsJsonArray("baselineFailures").isEmpty(),
             "Passing run lacks compatible GPU evidence");
-        suite(profile, engine, revision, gpu);
+        if (status.equals("passed")) suite(profile, engine, revision, gpu);
       }
     }
     require(
@@ -294,6 +296,19 @@ public final class AcceptanceVerifier {
       require(replay.equals(expectedReplay), "Input replay differs from the workload");
       var sidecar = EvidenceJson.read(file(prefix + "final.png.json"));
       identity(sidecar, engine, revision);
+      for (String key :
+          List.of(
+              "schemaVersion",
+              "rootSeed",
+              "referenceTick",
+              "fixedTickSeconds",
+              "settings",
+              "referenceMotionClock",
+              "referenceColorClock",
+              "device"))
+        require(
+            Objects.equals(sidecar.get(key), item.get(key)),
+            "Image metadata contradicts its case report: " + key);
       require(
           number(sidecar, "width") == profile.width
               && number(sidecar, "height") == profile.height
@@ -344,6 +359,9 @@ public final class AcceptanceVerifier {
         require(
             folded.add(name.toLowerCase(Locale.ROOT)) && !Files.isSymbolicLink(path),
             "Evidence contains a symbolic link or colliding path");
+        require(
+            path.toRealPath().equals(realRoot.resolve(root.relativize(path))),
+            "Evidence may not traverse filesystem aliases");
         if (Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) continue;
         require(
             Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS),
@@ -365,6 +383,9 @@ public final class AcceptanceVerifier {
     for (String part : name.split("/")) {
       result = result.resolve(part);
       require(!Files.isSymbolicLink(result), "Evidence may not traverse symbolic links");
+      require(
+          result.toRealPath().equals(realRoot.resolve(root.relativize(result))),
+          "Evidence may not traverse filesystem aliases");
     }
     require(
         Files.isRegularFile(result, LinkOption.NOFOLLOW_LINKS),

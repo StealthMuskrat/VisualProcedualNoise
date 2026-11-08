@@ -1,0 +1,14 @@
+{
+  "recordedEngineVersion": "0.29.0",
+  "algorithmRevision": "gradient-v1-simulation-v2",
+  "profile": "smoke",
+  "workloadHashes": {
+    "opal": "0e83df7d26a3741933ecba85fa3755ebed3e39d7096c121dda3d230bd7b1199b",
+    "contours": "81940c5d63bab94ae7412eea985fac1c9e5d8d5f2a687c3f71182b3e34d48ab5",
+    "nested-warps": "efa9cbfb5f9c4f7c2a37a8a86ac4cd5e4cf3fb4b84f4f967d55b15b91132b737",
+    "pigment": "31996046e6f24350f8812c5da018e0d143d2c3cafb80a1fd19908fe510750038",
+    "reaction": "c3b7b9a3da32251f633821ed85f27236a3cac7d32a1e9c2a4936096ea4f2e3cb",
+    "particles": "af1ccbe7565536a230ca7e47513376beeef270cc31d1665b94e3ed5fbf1802d2",
+    "history": "b1261a2639aa63fbb64c3a61c00bf504d04620f4ddb934d8794d63d62c30ee72"
+  }
+}

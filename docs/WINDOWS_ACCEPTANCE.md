@@ -52,6 +52,45 @@ Archive identity covers the application JAR and sibling dependency/native JARs, 
 
 The runner also checks that the benchmark used the same capability snapshot, current engine/algorithm, chosen profile, all seven expected workload hashes, exact dimensions/ticks and matching case/image evidence. A changed/missing case cannot become an automated pass.
 
+## Verify copied evidence without a GPU
+
+Version 0.30 adds a read-only command for an already extracted evidence directory:
+
+```text
+ProceduralVisualEngine.exe --verify-acceptance DIRECTORY
+  [--acceptance-manifest-sha256 SHA256]
+```
+
+It needs no graphics context and never reruns the workloads, edits the bundle or loads desktop preferences. Ordinary diagnostic logs still rotate outside the evidence directory. Use a completed, closed copy; do not edit files while verification runs. Pending `.acceptance-pending-*` directories are not completed runs. ZIP extraction is a separate operator step.
+
+On the original testing machine, retain the manifest hash independently before transferring evidence:
+
+```powershell
+Get-FileHash (Join-Path $acceptanceOut 'results.json') -Algorithm SHA256
+```
+
+Keep that value in a trusted source record or separate channel. A hash obtained only from the received bundle cannot establish its authenticity. The optional expected hash checks the exact manifest bytes; file hashes and internal consistency are still checked when it is omitted. Hashes are not signatures, and a self-consistent edited manifest cannot prove who produced the evidence.
+
+To check a copied directory, open PowerShell in the extracted application folder. Replace the evidence path and expected hash with your actual values. Keep redirected output outside the input bundle:
+
+```powershell
+$reviewApp = Join-Path (Get-Location) 'ProceduralVisualEngine.exe'
+$reviewEvidence = 'D:\Copied evidence\acceptance-smoke'
+$reviewExpected = 'REPLACE_WITH_64_DIGIT_SOURCE_SHA256'
+$reviewArgs = '--verify-acceptance "' + $reviewEvidence + '" --acceptance-manifest-sha256 ' + $reviewExpected
+$reviewProcess = Start-Process -FilePath $reviewApp -ArgumentList $reviewArgs -Wait -PassThru -RedirectStandardOutput 'review-summary.json' -RedirectStandardError 'review-errors.log'
+$reviewProcess.ExitCode
+Get-Content 'review-summary.json'
+```
+
+Exit 0 means supported evidence is internally consistent. The JSON summary preserves its original `automatedStatus`, including `blocked` or `failed`; this exit code does not turn those outcomes into passing workloads. Exit 1 means invalid arguments, unreadable/unsupported evidence, a hash mismatch or inconsistent content. Errors leave source evidence untouched. Scene, shader, quality and acceptance-run overrides are rejected.
+
+The reader checks the inventory, every immutable file size/SHA-256, archive-set fingerprint, step ordering, observed host/GPU runtime consistency and outcome declarations. A passing bundle must contain all seven pinned workload contracts, initial presets, input replays, matching reports, PNG hashes/headers/dimensions and sidecars. Report version 1 and the current algorithm/profile contracts are supported, including v0.29 bundles; `checkerEngineVersion` and `recordedEngineVersion` remain separate. Recorded JAR fingerprints are checked for internal consistency, without comparing them with the reviewer's installation. This is not a replay/checkpoint compatibility promise, a GPU retest, full PNG decoding or certification of timing samples.
+
+Keep human observations in `manual-review.md`. Supporting files may be placed under `review/`; the reader counts these files but does not hash, interpret or certify them. Other unlisted files, missing machine evidence, path collisions, nonportable/traversing paths and filesystem aliases (including symbolic links/junctions) are rejected. The summary still reports `manualReview: not_run` and `hardwareAcceptance: not_established`, even if the operator has checked boxes. The human release decision remains in the manual form.
+
+Imported evidence is bounded: each parsed JSON file is at most 8 MiB with 32 nesting levels and 100,000 values; the inventory holds at most 128 immutable files, each at most 64 MiB and together at most 512 MiB. The entire tree, including manual supporting files, has at most 512 entries, eight path components and 240 relative-path characters. Archive identity holds at most 64 sorted JAR entries. Duplicate JSON keys and non-integer counts are rejected.
+
 ## 1080p measurements
 
 After the smoke run succeeds, repeat it into another new directory using `--acceptance-profile fullhd`. The fixed fullhd profile uses 1920×1080 output, a 257×257 simulation grid, 16,384 particles, 16 history layers, 60 warmup frames and 180 measured frames per case. Two 120 Hz simulation ticks advance per frame. It can be much slower on software rendering or weak hardware.

@@ -23,6 +23,14 @@ if not launcher.is_file():
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
+def require_clean_staging(root, phase):
+    remaining = {path.name: [str(child.relative_to(path)) for child in sorted(path.rglob("*"))[:64]]
+                 for path in sorted(root.glob(".acceptance-pending-*"))}
+    if remaining:
+        detail = {"phase": phase, "staging": remaining}
+        (reports / "acceptance-staging-failure.json").write_text(json.dumps(detail, indent=2), encoding="utf-8")
+        raise SystemExit("Acceptance left staging after " + phase + ": " + json.dumps(remaining))
+
 with tempfile.TemporaryDirectory(prefix="acceptance-check-", dir=reports) as temporary:
     root = Path(temporary) / "Windows acceptance études with spaces"
     root.mkdir()
@@ -33,6 +41,7 @@ with tempfile.TemporaryDirectory(prefix="acceptance-check-", dir=reports) as tem
     destination = root / "run"
     command = [str(launcher), "--acceptance-run", str(destination), "--acceptance-environment", "hosted"]
     result = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=180)
+    require_clean_staging(root, "initial published run")
     if not (destination / "results.json").is_file():
         raise SystemExit("Acceptance run failed to publish evidence: " + result.stdout + result.stderr)
     report = json.loads((destination / "results.json").read_text(encoding="utf-8"))
@@ -94,12 +103,12 @@ with tempfile.TemporaryDirectory(prefix="acceptance-check-", dir=reports) as tem
         blocked_env = dict(environment, __EGL_VENDOR_LIBRARY_FILENAMES=str(root / "absent-icd.json"))
         blocked = subprocess.run([str(launcher), "--acceptance-run", str(blocked_path), "--acceptance-environment", "physical"], env=blocked_env, capture_output=True, text=True, timeout=60)
         failure = json.loads((blocked_path / "results.json").read_text(encoding="utf-8"))
+        require_clean_staging(root, "published unavailable-GPU run")
         if blocked.returncode != 2 or failure["automatedStatus"] != "blocked" or failure["hardwareAcceptance"] != "not_established" or failure["steps"]["benchmark"]["status"] != "not_run":
             raise SystemExit("Unavailable context or caller declaration manufactured acceptance")
     if preferences.read_bytes() != b"existing preferences must stay untouched":
         raise SystemExit("Acceptance changed desktop preferences")
-    if list(root.glob(".acceptance-pending-*")):
-        raise SystemExit("Acceptance left owned staging directories after handled completion")
+    require_clean_staging(root, "completed preservation checks")
     help_result = subprocess.run([str(launcher), "--help"], capture_output=True, text=True, timeout=60, check=True)
     if "--acceptance-run" not in help_result.stdout or "fullhd" not in help_result.stdout:
         raise SystemExit("Installed help omits acceptance/fullhd modes")

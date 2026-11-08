@@ -6,7 +6,8 @@ import java.nio.file.*;
 public final class Main {
   public static void main(String[] args) {
     if (java.util.Arrays.asList(args).contains("--verify-installation")
-        && !java.util.Arrays.asList(args).contains("--acceptance-run")) {
+        && !java.util.Arrays.asList(args).contains("--acceptance-run")
+        && !java.util.Arrays.asList(args).contains("--verify-acceptance")) {
       System.out.println(Installation.verify());
       return;
     }
@@ -39,6 +40,9 @@ public final class Main {
               + " smoke|quick|standard|fullhd]\n"
               + "  [--acceptance-environment unspecified|physical|hosted] (manual review remains"
               + " required)\n"
+              + "--verify-acceptance DIRECTORY [--acceptance-manifest-sha256 SHA256]\n"
+              + "  (read-only consistency check; no GPU required; manual acceptance stays"
+              + " pending)\n"
               + "--checkpoint study.vstate --save-checkpoint study.vstate\n"
               + "--bookmark LABEL --discoveries DIRECTORY --discovery ID --reference-discovery ID\n"
               + "Interactive: Space pause, period step, R reset, F5 reload, F11 fullscreen, Tab"
@@ -71,7 +75,12 @@ public final class Main {
                   + " / "
                   + System.getProperty("os.arch"));
           Options options = Options.parse(args);
-          if (options.acceptanceRun != null)
+          if (options.verifyAcceptance != null)
+            System.out.println(
+                dev.visualengine.presets.PresetIO.JSON.toJson(
+                    dev.visualengine.export.AcceptanceVerifier.verify(
+                        options.verifyAcceptance, options.acceptanceManifestSha256)));
+          else if (options.acceptanceRun != null)
             exitStatus =
                 dev.visualengine.export.AcceptanceRun.run(
                         options.acceptanceRun,
@@ -104,6 +113,7 @@ public final class Main {
                           "--export",
                           "--benchmark-suite",
                           "--diagnose-gpu",
+                          "--verify-acceptance",
                           "--acceptance-run")
                       ::contains))
         javax.swing.JOptionPane.showMessageDialog(

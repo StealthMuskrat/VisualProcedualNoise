@@ -29,6 +29,8 @@ public final class Options {
   public Path benchmarkSuite;
   public Path gpuDiagnostic;
   public Path acceptanceRun;
+  public Path verifyAcceptance;
+  public String acceptanceManifestSha256;
   public dev.visualengine.export.BenchmarkWorkloads.Profile acceptanceProfile =
       dev.visualengine.export.BenchmarkWorkloads.Profile.SMOKE;
   public dev.visualengine.export.AcceptanceRun.Environment acceptanceEnvironment =
@@ -110,6 +112,13 @@ public final class Options {
         case "--benchmark-suite" -> o.benchmarkSuite = Path.of(args[++i]);
         case "--diagnose-gpu" -> o.gpuDiagnostic = Path.of(args[++i]);
         case "--acceptance-run" -> o.acceptanceRun = Path.of(args[++i]);
+        case "--verify-acceptance" -> o.verifyAcceptance = Path.of(args[++i]);
+        case "--acceptance-manifest-sha256" -> {
+          o.acceptanceManifestSha256 = args[++i].toLowerCase(java.util.Locale.ROOT);
+          if (!o.acceptanceManifestSha256.matches("[0-9a-f]{64}"))
+            throw new IllegalArgumentException(
+                "Acceptance manifest hash must be a 64-digit SHA-256");
+        }
         case "--acceptance-profile" -> {
           o.acceptanceProfile =
               dev.visualengine.export.BenchmarkWorkloads.Profile.valueOf(
@@ -142,6 +151,18 @@ public final class Options {
         case "--seed" -> o.seed = Long.parseLong(args[++i]);
         default -> throw new IllegalArgumentException("Unknown option: " + args[i]);
       }
+    if (o.acceptanceManifestSha256 != null && o.verifyAcceptance == null)
+      throw new IllegalArgumentException("Acceptance manifest hash requires --verify-acceptance");
+    if (o.verifyAcceptance != null) {
+      var allowed =
+          java.util.Set.of("--verify-acceptance", "--acceptance-manifest-sha256", "--headless");
+      for (String arg : args)
+        if (arg.startsWith("--") && !allowed.contains(arg))
+          throw new IllegalArgumentException(
+              "Acceptance verification is read-only; unsupported override: " + arg);
+      o.headless = true;
+      return o;
+    }
     if (o.acceptanceRun == null && (o.explicitAcceptanceProfile || o.explicitAcceptanceEnvironment))
       throw new IllegalArgumentException(
           "Acceptance profile/environment requires --acceptance-run");

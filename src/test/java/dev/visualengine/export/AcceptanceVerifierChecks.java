@@ -173,7 +173,41 @@ public final class AcceptanceVerifierChecks {
                 && result.get("releaseAcceptance").getAsString().equals("blocked"),
             "consistent failed/blocked evidence retains its outcome");
       }
+      JsonObject reference;
+      try (var input =
+          AcceptanceVerifierChecks.class.getResourceAsStream(
+              "/acceptance-v29-workload-hashes.json")) {
+        if (input == null) throw new AssertionError("Missing v0.29 acceptance reference");
+        reference =
+            JsonParser.parseString(
+                    new String(input.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8))
+                .getAsJsonObject();
+      }
+      check(
+          reference.get("recordedEngineVersion").getAsString().equals("0.29.0")
+              && reference.get("algorithmRevision").getAsString().equals(PresetIO.REVISION)
+              && BenchmarkWorkloads.create(BenchmarkWorkloads.Profile.SMOKE).stream()
+                  .allMatch(
+                      work ->
+                          work.hash()
+                              .equals(
+                                  reference
+                                      .getAsJsonObject("workloadHashes")
+                                      .get(work.id())
+                                      .getAsString())),
+          "workload identities match frozen real v0.29 acceptance evidence");
       Path previous = copy("previous-build");
+      Path missingProbe = root.resolve("benchmark");
+      var missingProbeReport = read(missingProbe.resolve("results.json"));
+      Files.delete(missingProbe.resolve("gpu.json"));
+      reindex(missingProbe, missingProbeReport);
+      write(missingProbe.resolve("results.json"), missingProbeReport);
+      try {
+        AcceptanceVerifier.verify(missingProbe, null);
+        throw new AssertionError("accepted missing successful probe from failed workload run");
+      } catch (IOException expected) {
+        count++;
+      }
       try (var paths = Files.walk(previous)) {
         for (var file : paths.filter(p -> p.toString().endsWith(".json")).toList())
           Files.writeString(
@@ -340,6 +374,15 @@ public final class AcceptanceVerifierChecks {
             item.addProperty("imageHash", AcceptanceEvidence.sha256(path));
             write(p.resolve("benchmark/opal/report.json"), item);
             write(p.resolve("benchmark/suite.json"), suite);
+            reindex(p, r);
+          });
+      reject(
+          "rehashed image sidecar for different controls",
+          (p, r) -> {
+            Path path = p.resolve("benchmark/opal/final.png.json");
+            var sidecar = read(path);
+            sidecar.addProperty("rootSeed", "99");
+            write(path, sidecar);
             reindex(p, r);
           });
       Path malformed = copy("malformed-json");
