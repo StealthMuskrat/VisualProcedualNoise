@@ -70,6 +70,8 @@ Version 0.21 bounds generated expression/gradient text and final shader stages a
 
 Version 0.22 commits scene undo history only after an edit is accepted. Failed edits retain useful history, failed undo can be retried, and seed/layout/RESET restores request the appropriate restart. See [scene history and undo](docs/UNDO.md).
 
+Version 0.30 adds [read-only verification of copied acceptance evidence](docs/WINDOWS_ACCEPTANCE.md#verify-copied-evidence-without-a-gpu). Use `--verify-acceptance DIRECTORY` with an optional trusted `--acceptance-manifest-sha256 SHA256`. It checks immutable files, supported workload contracts and report consistency without a GPU, while preserving blocked/failed outcomes and leaving manual/hardware acceptance pending.
+
 Version 0.29 adds [packaged Windows acceptance runs](docs/WINDOWS_ACCEPTANCE.md): installation/GPU checks, seven pinned workloads, archive and evidence fingerprints, and an unchecked manual-review form. Use `--acceptance-run NEW_DIRECTORY --acceptance-environment physical` for a smoke run, then `--acceptance-profile fullhd` in another new directory for fixed 1920×1080 measurements. The package includes the guide and a shader copy for manual reload tests. Physical desktop, visual, endurance and performance acceptance remains required.
 
 Version 0.28 adds [typed node previews](docs/AUTHORING.md#preview-typed-outputs): vector components/length, distance masks and region hashes. Conversions use visible reusable graph nodes, preserve source selection and share graph undo. Scalar preview retains its existing behavior.

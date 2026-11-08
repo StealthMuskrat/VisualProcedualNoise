@@ -10,6 +10,8 @@ Version 0.13 queries the active OpenGL device before creating the engine's shade
 
 For a release-validation bundle, use the [packaged acceptance runner](WINDOWS_ACCEPTANCE.md). It checks installation resources, retains this GPU probe, runs pinned workloads when supported, fingerprints evidence and leaves manual desktop/hardware review explicitly unrun. The standalone command below remains useful for a smaller startup report.
 
+Use `--verify-acceptance DIRECTORY` when reviewing an existing copied acceptance bundle. This checks supported evidence without probing a GPU, rerunning workloads or upgrading the source outcome. See the [read-only review guide](WINDOWS_ACCEPTANCE.md#verify-copied-evidence-without-a-gpu).
+
 In the **Files** tab, choose **Save GPU capability report**. This saves the cached device snapshot plus the current tick, quality settings, framebuffer dimensions, tracked allocation and presentation request. Saving does not query or read back GPU resources, advance ticks, reset state, change undo history or add replay events. File output uses the existing bounded worker queue.
 
 For startup diagnosis, run the standalone command:
