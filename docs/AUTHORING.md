@@ -56,7 +56,7 @@ Generated function wrappers and control declarations join engine resources under
 
 ## Node graphs
 
-Add an operation, select its node, and enter source node IDs in port order. Shift-click a target to connect from the selected source. Drag nodes to arrange them. Update selected applies property changes to the draft. Apply graph validates and activates it. Preview selected makes a scalar node the active output. Graph edits and scene changes have separate undo controls.
+Add an operation, select its node, and enter source node IDs in port order. Shift-click a target to connect from the selected source. Drag nodes to arrange them. Update selected applies property changes to the draft. Apply graph validates and activates it. Preview selected uses the chosen interpretation; Scalar field makes a scalar node the active output directly. Graph edits and scene changes have separate undo controls.
 
 Version 0.24 adds Find nodes above the canvas. Search is case-insensitive; every whitespace-separated word must match the node ID, operation, group label, comment or pinned template revision. Results retain root-node order and show each ID with its operation. The count includes matching and total root nodes. Embedded group internals remain represented by their root GROUP instance. Incomplete formula/link drafts are searchable too.
 
@@ -70,11 +70,33 @@ Undo graph edit restores the draft and its selected node, including after a rena
 
 Rename changes generated variable names and program identity. Native checks compare both ordinary seeded graphs and group instances: the image, GPU bytes, clocks and next-tick evolution stay identical, and returning to the previous graph can reuse its material. Installed checks additionally verify persisted IDs/links/seed keys, pinned definitions, exact checkpoint continuation and preservation of existing files after invalid imports. Creative formats and algorithm revision remain unchanged; checkpoints retain exact engine-version/source compatibility.
 
-Ports distinguish scalar, vector2, vector3, distance and region ID. Convert distance through MASK and region identity through HASH_ID. Same-step cycles and missing references are rejected. PREVIOUS_COLOR reads the engine's previous fixed-tick linear visual feedback resource; PIGMENT and AGE read their explicit persistent systems. These are declared state boundaries, not arbitrary same-step connections.
+Ports distinguish scalar, vector2, vector3, vector4, distance and region ID. Convert distance through MASK and region identity through HASH_ID. Same-step cycles and missing references are rejected. PREVIOUS_COLOR reads the engine's previous fixed-tick linear visual feedback resource; PIGMENT and AGE read their explicit persistent systems. These are declared state boundaries, not arbitrary same-step connections.
 
 The compiler validates graph fragments, removes disconnected execution work, topologically orders the selected output, and shares equivalent pure expressions with the same complete generated coordinate/seed context. Reachable pointwise operations become one specialized shader. Persistent updates stay in their own passes; no texture is allocated for each arithmetic node.
 
 EXPRESSION nodes accept one to four numeric inputs, named `input0` through `input3` inside the expression. Inputs and output may be scalar or vector2/3/4. These names are reserved from control descriptors. Distances and region IDs still require explicit conversion before arithmetic. Expressions bind parsed syntax nodes to generated values, so input expressions never become unvalidated shader text.
+
+## Preview typed outputs
+
+Version 0.28 adds Preview interpretation beside Preview selected output. Select a root node through the canvas, navigator or connection editor, choose an interpretation, then preview. Scalar field preserves the earlier scalar-only behavior. Converted values pass through the current material, palette and finishing settings.
+
+| Interpretation | Required source type | Scalar output |
+| --- | --- | --- |
+| Scalar field | SCALAR | Selected output directly |
+| X / Y component | VECTOR2, VECTOR3 or VECTOR4 | Requested component |
+| Z component | VECTOR3 or VECTOR4 | Third component |
+| W component | VECTOR4 | Fourth component |
+| Vector length | VECTOR2, VECTOR3 or VECTOR4 | Euclidean length of all components |
+| Distance mask | DISTANCE | Existing MASK interpretation |
+| Region hash | REGION_ID | Existing HASH_ID interpretation |
+
+A converted preview adds an ordinary visible EXPRESSION, MASK or HASH_ID node and makes it the active output. The original source remains selected so another interpretation can be requested. Matching adapters are reused on repeated previews; their nodes, links and expressions stay editable. New adapters use an available `preview` ID and count toward the 64-root-node limit. A matching existing adapter can be reused at that limit, and scalar preview adds no node.
+
+The preview uses the stored graph draft. Update selected first to include unfinished source-property edits. A successful preview leaves those unsubmitted fields separate, refreshes every root-node selector and submits a snapshot of the interpreted graph. Undo graph edit restores the prior graph and source selection, including removal of a newly added adapter. Unchanged repeated previews add no graph-undo entry. Choosing an interpretation alone changes no graph data and submits no command. Scene sync resets the interpretation to Scalar field.
+
+Disconnected numeric/semantic sources and pinned group outputs are inspected using the same compiler validation as ordinary graphs. Vector components must exist, and distance/region conversions keep their explicit semantic type requirements. Incompatible modes, invalid fragments and exhausted node capacity preserve the prior graph, accepted preview and undo history. Interpretation errors reveal the selected source; graph-validation errors retain their located node diagnostics. Type inspection does not change existing generated source or the compiler’s reachable-output type map.
+
+Previews use the existing scene-apply path. Held renders preserve simulation bytes and clocks; advancing a preview evolves the scene under its interpreted field. Graph undo restores configuration. Checkpoints retain simulation state under their existing exact engine/source compatibility rules. Preview adapters persist as ordinary graph data in presets, replay and checkpoints; creative formats and algorithm revision remain unchanged.
 
 ## Ordered connections
 
