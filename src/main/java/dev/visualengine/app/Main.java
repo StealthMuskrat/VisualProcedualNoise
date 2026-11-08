@@ -5,20 +5,9 @@ import java.nio.file.*;
 
 public final class Main {
   public static void main(String[] args) {
-    if (java.util.Arrays.asList(args).contains("--verify-installation")) {
-      var settings = new dev.visualengine.model.Settings();
-      dev.visualengine.presets.PresetIO.parse(
-          dev.visualengine.presets.PresetIO.JSON.toJson(
-              dev.visualengine.presets.PresetIO.document(settings, 0)));
-      dev.visualengine.authoring.Formula.compile(settings.expression);
-      new dev.visualengine.gpu.ShaderSources(null).read("render/material.frag");
-      if (Main.class.getResource("/META-INF/licenses/LWJGL-BSD.txt") == null)
-        throw new IllegalStateException("Packaged license resources are missing");
-      System.out.println(
-          "Installation verified | Java "
-              + System.getProperty("java.version")
-              + " | GLFW "
-              + org.lwjgl.glfw.GLFW.glfwGetVersionString());
+    if (java.util.Arrays.asList(args).contains("--verify-installation")
+        && !java.util.Arrays.asList(args).contains("--acceptance-run")) {
+      System.out.println(Installation.verify());
       return;
     }
     if (java.util.Arrays.asList(args).contains("--help")) {
@@ -44,8 +33,12 @@ public final class Main {
               + "--export DIRECTORY --frames N --fps 24|30|60|120 --warmup TICKS\n"
               + "--replay take.replay.json --list-recipes\n"
               + "--benchmark FILE.json --frames N>30 (individual ticks; --fps >=15)\n"
-              + "--benchmark-suite NEW_DIRECTORY --benchmark-profile smoke|quick|standard"
+              + "--benchmark-suite NEW_DIRECTORY --benchmark-profile smoke|quick|standard|fullhd"
               + " [--shaders DIRECTORY]\n"
+              + "--acceptance-run NEW_DIRECTORY [--acceptance-profile"
+              + " smoke|quick|standard|fullhd]\n"
+              + "  [--acceptance-environment unspecified|physical|hosted] (manual review remains"
+              + " required)\n"
               + "--checkpoint study.vstate --save-checkpoint study.vstate\n"
               + "--bookmark LABEL --discoveries DIRECTORY --discovery ID --reference-discovery ID\n"
               + "Interactive: Space pause, period step, R reset, F5 reload, F11 fullscreen, Tab"
@@ -62,6 +55,7 @@ public final class Main {
             System.getenv().getOrDefault("LOCALAPPDATA", System.getProperty("user.home")),
             "ProceduralVisualEngine");
     PrintStream console = System.err;
+    int exitStatus = 0;
     try {
       try (var log = dev.visualengine.platform.BoundedLog.open(data)) {
         System.setErr(log);
@@ -77,7 +71,14 @@ public final class Main {
                   + " / "
                   + System.getProperty("os.arch"));
           Options options = Options.parse(args);
-          if (options.gpuDiagnostic != null)
+          if (options.acceptanceRun != null)
+            exitStatus =
+                dev.visualengine.export.AcceptanceRun.run(
+                        options.acceptanceRun,
+                        options.acceptanceProfile,
+                        options.acceptanceEnvironment)
+                    .exitCode();
+          else if (options.gpuDiagnostic != null)
             dev.visualengine.export.GpuReport.probe(options.gpuDiagnostic);
           else if (options.benchmarkSuite != null)
             dev.visualengine.export.BenchmarkSuite.run(
@@ -98,7 +99,12 @@ public final class Main {
       if (!java.awt.GraphicsEnvironment.isHeadless()
           && java.util.Arrays.stream(args)
               .noneMatch(
-                  java.util.Set.of("--headless", "--export", "--benchmark-suite", "--diagnose-gpu")
+                  java.util.Set.of(
+                          "--headless",
+                          "--export",
+                          "--benchmark-suite",
+                          "--diagnose-gpu",
+                          "--acceptance-run")
                       ::contains))
         javax.swing.JOptionPane.showMessageDialog(
             null,
@@ -107,5 +113,6 @@ public final class Main {
             javax.swing.JOptionPane.ERROR_MESSAGE);
       System.exit(1);
     }
+    if (exitStatus != 0) System.exit(exitStatus);
   }
 }

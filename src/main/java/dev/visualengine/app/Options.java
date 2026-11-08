@@ -28,6 +28,12 @@ public final class Options {
   public Path benchmark;
   public Path benchmarkSuite;
   public Path gpuDiagnostic;
+  public Path acceptanceRun;
+  public dev.visualengine.export.BenchmarkWorkloads.Profile acceptanceProfile =
+      dev.visualengine.export.BenchmarkWorkloads.Profile.SMOKE;
+  public dev.visualengine.export.AcceptanceRun.Environment acceptanceEnvironment =
+      dev.visualengine.export.AcceptanceRun.Environment.UNSPECIFIED;
+  private boolean explicitAcceptanceProfile, explicitAcceptanceEnvironment;
   public dev.visualengine.export.BenchmarkWorkloads.Profile benchmarkProfile =
       dev.visualengine.export.BenchmarkWorkloads.Profile.QUICK;
   private boolean explicitBenchmarkProfile;
@@ -103,6 +109,19 @@ public final class Options {
         case "--benchmark" -> o.benchmark = Path.of(args[++i]);
         case "--benchmark-suite" -> o.benchmarkSuite = Path.of(args[++i]);
         case "--diagnose-gpu" -> o.gpuDiagnostic = Path.of(args[++i]);
+        case "--acceptance-run" -> o.acceptanceRun = Path.of(args[++i]);
+        case "--acceptance-profile" -> {
+          o.acceptanceProfile =
+              dev.visualengine.export.BenchmarkWorkloads.Profile.valueOf(
+                  args[++i].toUpperCase(java.util.Locale.ROOT));
+          o.explicitAcceptanceProfile = true;
+        }
+        case "--acceptance-environment" -> {
+          o.acceptanceEnvironment =
+              dev.visualengine.export.AcceptanceRun.Environment.valueOf(
+                  args[++i].toUpperCase(java.util.Locale.ROOT));
+          o.explicitAcceptanceEnvironment = true;
+        }
         case "--benchmark-profile" -> {
           o.benchmarkProfile =
               dev.visualengine.export.BenchmarkWorkloads.Profile.valueOf(
@@ -123,6 +142,21 @@ public final class Options {
         case "--seed" -> o.seed = Long.parseLong(args[++i]);
         default -> throw new IllegalArgumentException("Unknown option: " + args[i]);
       }
+    if (o.acceptanceRun == null && (o.explicitAcceptanceProfile || o.explicitAcceptanceEnvironment))
+      throw new IllegalArgumentException(
+          "Acceptance profile/environment requires --acceptance-run");
+    if (o.acceptanceRun != null) {
+      var allowed =
+          java.util.Set.of(
+              "--acceptance-run", "--acceptance-profile", "--acceptance-environment", "--headless");
+      for (String arg : args)
+        if (arg.startsWith("--") && !allowed.contains(arg))
+          throw new IllegalArgumentException(
+              "Acceptance run uses bundled resources and pinned workloads; unsupported override: "
+                  + arg);
+      o.headless = true;
+      return o;
+    }
     if (o.gpuDiagnostic != null) {
       for (String arg : args)
         if (arg.startsWith("--") && !java.util.Set.of("--diagnose-gpu", "--headless").contains(arg))

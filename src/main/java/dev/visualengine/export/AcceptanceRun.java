@@ -245,8 +245,13 @@ public final class AcceptanceRun {
     - Tester / date:
     - Windows edition, version and build from winver:
     - Physical GPU, driver version and display connection:
+    - CPU/RAM and power profile:
     - Display resolutions, scaling and monitor arrangement:
     - Build/archive identity reviewed against results.json:
+
+    For the shader-reload check, copy the distribution's acceptance-shaders directory to
+    a separate manual-test directory and launch the app with --shaders pointing to that copy.
+    Record paths and edits below. See docs/WINDOWS_ACCEPTANCE.md in the distribution.
 
     ## Desktop and installation
 
