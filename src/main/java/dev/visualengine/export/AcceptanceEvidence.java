@@ -13,12 +13,22 @@ public final class AcceptanceEvidence {
   private AcceptanceEvidence() {}
 
   public static String sha256(Path path) throws IOException {
+    return sha256(path, Long.MAX_VALUE);
+  }
+
+  static String sha256(Path path, long maximumBytes) throws IOException {
     try {
       var digest = MessageDigest.getInstance("SHA-256");
-      try (var input = Files.newInputStream(path)) {
+      try (var input = Files.newInputStream(path, LinkOption.NOFOLLOW_LINKS)) {
         byte[] buffer = new byte[8192];
         int count;
-        while ((count = input.read(buffer)) != -1) digest.update(buffer, 0, count);
+        long total = 0;
+        while ((count = input.read(buffer)) != -1) {
+          if (count > maximumBytes - total)
+            throw new IOException("Evidence exceeds its byte limit");
+          total += count;
+          digest.update(buffer, 0, count);
+        }
       }
       return HexFormat.of().formatHex(digest.digest());
     } catch (NoSuchAlgorithmException error) {
